@@ -1,0 +1,10 @@
+@config "../tailwind.config.ts";
+@import "tailwindcss";
+
+
+/* If you have custom fonts or resets, put them below */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+}
