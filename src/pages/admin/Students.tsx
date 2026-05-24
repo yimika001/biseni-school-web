@@ -89,19 +89,36 @@ const Students = () => {
   }, [searchTerm, filterClass]);
 
   const handleAddStudent = async () => {
-    if (!form.firstName || !form.lastName || !form.class || !form.department) {
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.class || !form.department) {
       alert('Please fill in all required fields.');
       return;
     }
     try {
       setSubmitting(true);
-      await axios.post(
+      setNewCredentials(null);
+      setSuccessMsg('');
+
+      const response = await axios.post(
         `${import.meta.env.VITE_API_URL}/students/register`,
         form,
         { headers: { Authorization: `Bearer ${activeToken}` } }
       );
+
+      if (response.data && response.data.admissionNumber && response.data.defaultPassword) {
+        setNewCredentials({
+          admissionNumber: response.data.admissionNumber,
+          defaultPassword: response.data.defaultPassword,
+        });
+      } else if (response.data?.student) {
+        setNewCredentials({
+          admissionNumber: response.data.student.admissionNumber,
+          defaultPassword: response.data.student.defaultPassword,
+        });
+      }
+
       setSuccessMsg(`Student registered successfully!`);
       fetchStudents();
+      
       setForm({
         firstName: '',
         lastName: '',
@@ -112,6 +129,7 @@ const Students = () => {
         admissionYear: new Date().getFullYear().toString(),
       });
     } catch (error) {
+      console.error('Registration error:', error);
       alert('Failed to register student. Please try again.');
     } finally {
       setSubmitting(false);
@@ -232,7 +250,8 @@ const Students = () => {
                 students.map((student) => (
                   <tr key={student._id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-bold text-gray-900">{student.firstName} {student.lastName}</div>
+                      {/* Displays Last Name (Surname) first for proper academic listing formatting */}
+                      <div className="font-bold text-gray-900">{student.lastName}, {student.firstName}</div>
                       <div className="text-xs text-gray-400">{student.gender} · {student.department}</div>
                     </td>
                     <td className="px-6 py-4 text-gray-600 font-medium">{student.admissionNumber}</td>
@@ -295,6 +314,16 @@ const Students = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Surname *</label>
+                  <input
+                    type="text"
+                    value={form.lastName}
+                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
+                    placeholder="e.g. Jonah"
+                  />
+                </div>
+                <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">First Name *</label>
                   <input
                     type="text"
@@ -302,16 +331,6 @@ const Students = () => {
                     onChange={(e) => setForm({ ...form, firstName: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
                     placeholder="e.g. Amaka"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Last Name *</label>
-                  <input
-                    type="text"
-                    value={form.lastName}
-                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
-                    placeholder="e.g. Jonah"
                   />
                 </div>
               </div>

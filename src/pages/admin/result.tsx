@@ -56,12 +56,15 @@ const Results = () => {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<'pending' | 'term' | 'history'>('pending');
 
+  // Operational Messaging States
+  const [uiError, setUiError] = useState<string | null>(null);
+  const [termMsg, setTermMsg] = useState('');
+
   // Active Term States
   const [activeTerm, setActiveTerm] = useState<ActiveTerm | null>(null);
   const [newTerm, setNewTerm] = useState('First');
   const [newSession, setNewSession] = useState('2025/2026');
   const [settingTerm, setSettingTerm] = useState(false);
-  const [termMsg, setTermMsg] = useState('');
 
   // Pending Results States
   const [pendingResults, setPendingResults] = useState<PendingResult[]>([]);
@@ -85,9 +88,10 @@ const Results = () => {
     fetchPendingResults();
   }, []);
 
-  // Clear messages when changing tabs
+  // Clear transient layout states when changing view context
   useEffect(() => {
     setSearchErrorMessage(null);
+    setUiError(null);
   }, [activeTab]);
 
   const fetchActiveTerm = async () => {
@@ -104,14 +108,14 @@ const Results = () => {
 
   const fetchPendingResults = async () => {
     try {
-      loadingPending || setLoadingPending(true);
+      setLoadingPending(true);
       const response = await axios.get(
         `${import.meta.env.VITE_API_URL}/results/pending`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setPendingResults(response.data.results);
     } catch {
-      console.error('Failed to fetch pending results');
+      setUiError('Failed to fetch pending results ledger metrics from server.');
     } finally {
       setLoadingPending(false);
     }
@@ -120,6 +124,7 @@ const Results = () => {
   const handleSetActiveTerm = async () => {
     try {
       setSettingTerm(true);
+      setUiError(null);
       await axios.post(
         `${import.meta.env.VITE_API_URL}/active-term`,
         { term: newTerm, session: newSession },
@@ -129,7 +134,7 @@ const Results = () => {
       fetchActiveTerm();
       setTimeout(() => setTermMsg(''), 4000);
     } catch {
-      alert('Failed to set active term.');
+      setUiError('Failed to sync and update active school session metrics.');
     } finally {
       setSettingTerm(false);
     }
@@ -137,6 +142,7 @@ const Results = () => {
 
   const handleToggleLock = async () => {
     try {
+      setUiError(null);
       await axios.put(
         `${import.meta.env.VITE_API_URL}/active-term/lock`,
         {},
@@ -144,12 +150,13 @@ const Results = () => {
       );
       fetchActiveTerm();
     } catch {
-      alert('Failed to toggle lock.');
+      setUiError('Failed to toggle results submission system lock.');
     }
   };
 
   const handleApprove = async (id: string) => {
     try {
+      setUiError(null);
       await axios.put(
         `${import.meta.env.VITE_API_URL}/results/${id}/approve`,
         {},
@@ -157,41 +164,46 @@ const Results = () => {
       );
       fetchPendingResults();
     } catch {
-      alert('Failed to approve result.');
+      setUiError('Failed to process individual result approval criteria.');
     }
   };
 
   const handleReject = async (id: string) => {
     const reason = prompt('Enter rejection reason:');
-    if (!reason) return;
+    if (!reason?.trim()) return;
     try {
+      setUiError(null);
       await axios.put(
         `${import.meta.env.VITE_API_URL}/results/${id}/reject`,
-        { rejectionReason: reason },
+        { rejectionReason: reason.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       fetchPendingResults();
     } catch {
-      alert('Failed to reject result.');
+      setUiError('Failed to push rejection transaction criteria to backend database.');
     }
   };
 
   const handleApproveBulk = async () => {
     if (!selectedClass || !selectedTerm) {
-      alert('Please select a class and term to approve bulk results.');
+      setUiError('Please specify target Class and Academic Term fields to execute bulk operations.');
       return;
     }
-    if (!confirm(`Approve all pending results for ${selectedClass} - ${selectedTerm} term?`)) return;
+    const currentSession = activeTerm?.session || newSession;
+    if (!confirm(`Approve all pending results for ${selectedClass} - ${selectedTerm} term (${currentSession})?`)) return;
+    
     try {
+      setUiError(null);
       await axios.put(
         `${import.meta.env.VITE_API_URL}/results/approve-bulk`,
-        { class: selectedClass, term: selectedTerm, session: activeTerm?.session },
+        { class: selectedClass, term: selectedTerm, session: currentSession },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       fetchPendingResults();
-      alert('All results approved successfully.');
+      setTermMsg('All targeted ledger criteria updated successfully.');
+      setTimeout(() => setTermMsg(''), 4000);
     } catch {
-      alert('Failed to approve results.');
+      setUiError('Bulk system approval transactional routine failed.');
     }
   };
 
@@ -203,7 +215,6 @@ const Results = () => {
       setSelectedStudent(null);
       setSearchResults([]);
       
-      // Cache buster appended to avoid 304 Not Modified browser issues
       const response = await axios.get(
         `${import.meta.env.VITE_API_URL}/students`,
         {
@@ -218,7 +229,6 @@ const Results = () => {
         }
       );
       
-      // Determine array structure from response
       let matchedStudents: any[] = [];
       if (response.data && Array.isArray(response.data.students)) {
         matchedStudents = response.data.students;
@@ -226,17 +236,15 @@ const Results = () => {
         matchedStudents = response.data;
       }
 
-      // Check if the array came back empty (e.g. searching "john")
       if (matchedStudents.length === 0) {
         setSearchResults([]);
-        setSearchErrorMessage(`The name "${historySearch}" is not registered in the database.`);
+        setSearchErrorMessage(`The name or entry token "${historySearch}" is not registered in the database.`);
       } else {
         setSearchResults(matchedStudents);
       }
     } catch (error: any) {
-      console.error("Search Error:", error);
       setSearchResults([]);
-      setSearchErrorMessage(`The name "${historySearch}" is not registered in the database.`);
+      setSearchErrorMessage(`The search parameters matching "${historySearch}" returned zero registration instances.`);
     } finally {
       setSearchingStudents(false);
     }
@@ -253,7 +261,7 @@ const Results = () => {
       );
       setStudentHistory(response.data.grouped);
     } catch {
-      alert('Failed to fetch student history.');
+      setUiError('Failed to fetch selected individual lifespan result historical records.');
     } finally {
       setLoadingHistory(false);
     }
@@ -266,30 +274,50 @@ const Results = () => {
   });
 
   return (
-    <div className="p-4 md:p-8 pb-24 md:pb-8">
+    <div className="p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto">
 
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900 uppercase">Results Manager</h1>
-        <p className="text-gray-500 text-xs md:text-sm">
-          {activeTerm
-            ? `Active Term: ${activeTerm.term} Term · ${activeTerm.session} · ${activeTerm.isLocked ? '🔒 Locked' : '🔓 Open'}`
-            : 'No active term set'}
-        </p>
+      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tight">Results Manager</h1>
+          <p className="text-gray-500 text-xs md:text-sm mt-0.5 font-medium">
+            {activeTerm
+              ? `Active Term: ${activeTerm.term} Term · ${activeTerm.session} · ${activeTerm.isLocked ? '🔒 Locked' : '🔓 Open'}`
+              : 'No active terminal framework initialized'}
+          </p>
+        </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-6 flex-wrap">
+      {/* Persistent Application Context Notification Blocks */}
+      {uiError && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center justify-between shadow-sm transition-all animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-lg text-amber-700">
+              <AlertTriangle size={18} />
+            </div>
+            <div>
+              <p className="text-[10px] font-black text-amber-900 uppercase tracking-wider">System Exception</p>
+              <p className="text-xs text-amber-800 font-semibold mt-0.5">{uiError}</p>
+            </div>
+          </div>
+          <button onClick={() => setUiError(null)} className="p-1 hover:bg-amber-100 text-amber-500 rounded-lg transition-all">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Tabs Layout */}
+      <div className="flex gap-2 mb-6 flex-wrap border-b border-gray-100 pb-4">
         <button
           onClick={() => setActiveTab('pending')}
           className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
-            activeTab === 'pending' ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-600'
+            activeTab === 'pending' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
           }`}
         >
           <Clock size={14} />
           Pending Approval
           {pendingResults.length > 0 && (
-            <span className="bg-red-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center">
+            <span className="bg-red-500 text-white text-[10px] font-black rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
               {pendingResults.length}
             </span>
           )}
@@ -297,7 +325,7 @@ const Results = () => {
         <button
           onClick={() => setActiveTab('term')}
           className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
-            activeTab === 'term' ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-600'
+            activeTab === 'term' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
           }`}
         >
           <Settings size={14} /> Term Settings
@@ -305,7 +333,7 @@ const Results = () => {
         <button
           onClick={() => setActiveTab('history')}
           className={`px-5 py-2.5 rounded-lg font-bold text-sm transition-all flex items-center gap-2 ${
-            activeTab === 'history' ? 'bg-primary text-white' : 'bg-white border border-gray-200 text-gray-600'
+            activeTab === 'history' ? 'bg-primary text-white shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
           }`}
         >
           <History size={14} /> Student History
@@ -316,23 +344,23 @@ const Results = () => {
       {activeTab === 'pending' && (
         <div className="space-y-4">
           <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-wrap gap-3 items-end">
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Filter Class</label>
+            <div className="flex-1 min-w-[140px]">
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1 tracking-wider">Filter Class</label>
               <select
                 value={selectedClass}
                 onChange={(e) => setSelectedClass(e.target.value)}
-                className="p-2 bg-gray-50 border rounded-lg font-bold text-xs outline-none"
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg font-bold text-xs outline-none focus:border-primary transition-all"
               >
                 <option value="">All Classes</option>
                 {classes.map((c) => <option key={c}>{c}</option>)}
               </select>
             </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Filter Term</label>
+            <div className="flex-1 min-w-[140px]">
+              <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1 tracking-wider">Filter Term</label>
               <select
                 value={selectedTerm}
                 onChange={(e) => setSelectedTerm(e.target.value)}
-                className="p-2 bg-gray-50 border rounded-lg font-bold text-xs outline-none"
+                className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg font-bold text-xs outline-none focus:border-primary transition-all"
               >
                 <option value="">All Terms</option>
                 {terms.map((t) => <option key={t}>{t}</option>)}
@@ -340,139 +368,149 @@ const Results = () => {
             </div>
             <button
               onClick={handleApproveBulk}
-              className="flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-green-700 transition-all"
+              disabled={!selectedClass || !selectedTerm}
+              className="flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-green-700 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <CheckCircle size={16} /> Approve Filtered
+              <CheckCircle size={16} /> Approve Filtered Group
             </button>
           </div>
 
           {loadingPending ? (
-            <div className="text-center py-12 text-gray-400">Loading pending results...</div>
+            <div className="text-center py-12 text-gray-400 font-semibold text-sm">Loading targeted pending data indexes...</div>
           ) : filteredPending.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <CheckCircle size={40} className="text-green-400 mx-auto mb-3" />
-              <p className="font-bold">No pending results. All caught up!</p>
+            <div className="text-center py-16 bg-white rounded-xl border border-gray-100 shadow-sm text-gray-400">
+              <CheckCircle size={44} className="text-green-500/80 mx-auto mb-3" />
+              <p className="font-bold text-gray-800 text-sm">All Records Checked</p>
+              <p className="text-xs text-gray-400 mt-0.5">No compilation entities await modification criteria right now.</p>
             </div>
           ) : (
-            filteredPending.map((result) => (
-              <div key={result._id} className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-xs bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full uppercase">Pending</span>
-                      <span className="text-xs text-gray-400 font-bold">{result.term} Term · {result.session}</span>
+            <div className="grid grid-cols-1 gap-4">
+              {filteredPending.map((result) => (
+                <div key={result._id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md/5 transition-all">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] bg-amber-100 text-amber-800 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Pending</span>
+                        <span className="text-xs text-gray-400 font-bold">{result.term} Term · {result.session}</span>
+                      </div>
+                      <h3 className="font-black text-gray-900 text-base">
+                        {result.studentId?.firstName} {result.studentId?.lastName}
+                      </h3>
+                      <p className="text-xs text-gray-600 font-semibold">
+                        {result.admissionNumber} · Class {result.class} · <span className="text-primary font-bold">{result.subject}</span>
+                      </p>
+                      <p className="text-[11px] text-gray-400 font-medium">
+                        Uploaded by: {result.uploadedBy?.name || 'Academic Facilitator'}
+                      </p>
                     </div>
-                    <h3 className="font-black text-gray-900">
-                      {result.studentId?.firstName} {result.studentId?.lastName}
-                    </h3>
-                    <p className="text-xs text-gray-500 font-bold">
-                      {result.admissionNumber} · Class {result.class} · {result.subject}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Uploaded by: {result.uploadedBy?.name}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 flex-wrap">
-                    <div className="text-center">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">C.A</p>
-                      <p className="font-black text-gray-900">{result.testScore}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">Exam</p>
-                      <p className="font-black text-gray-900">{result.examScore}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">Total</p>
-                      <p className="font-black text-primary text-xl">{result.totalScore}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-[10px] text-gray-400 font-bold uppercase">Grade</p>
-                      <p className="font-black text-gray-900">{result.grade}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleApprove(result._id)}
-                        className="flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-lg font-bold text-xs hover:bg-green-100 transition-all"
-                      >
-                        <CheckCircle size={14} /> Approve
-                      </button>
-                      <button
-                        onClick={() => handleReject(result._id)}
-                        className="flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded-lg font-bold text-xs hover:bg-red-100 transition-all"
-                      >
-                        <XCircle size={14} /> Reject
-                      </button>
+                    
+                    <div className="flex flex-wrap items-center gap-6 bg-gray-50/60 p-3 rounded-xl border border-gray-100/50 justify-between lg:justify-end">
+                      <div className="flex gap-4 md:gap-6 px-2">
+                        <div className="text-center">
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">C.A</p>
+                          <p className="font-black text-gray-900 text-sm mt-0.5">{result.testScore}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Exam</p>
+                          <p className="font-black text-gray-900 text-sm mt-0.5">{result.examScore}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Total</p>
+                          <p className="font-black text-primary text-base mt-0.5">{result.totalScore}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Grade</p>
+                          <p className="font-black text-gray-900 text-sm mt-0.5">{result.grade}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2 border-l border-gray-200 pl-4">
+                        <button
+                          onClick={() => handleApprove(result._id)}
+                          className="flex items-center gap-1 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-lg font-bold text-xs hover:bg-green-100/70 transition-all"
+                        >
+                          <CheckCircle size={13} /> Approve
+                        </button>
+                        <button
+                          onClick={() => handleReject(result._id)}
+                          className="flex items-center gap-1 bg-red-50 text-red-700 border border-red-200 px-3 py-2 rounded-lg font-bold text-xs hover:bg-red-100/70 transition-all"
+                        >
+                          <XCircle size={13} /> Reject
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       )}
 
       {/* TERM SETTINGS TAB */}
       {activeTab === 'term' && (
-        <div className="max-w-lg space-y-6">
+        <div className="max-w-xl space-y-6">
           {activeTerm && (
             <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-              <h3 className="font-black text-gray-900 uppercase text-sm tracking-widest mb-4">Current Active Term</h3>
+              <h3 className="font-black text-gray-400 uppercase text-[10px] tracking-widest mb-4">Current Active Administration Node</h3>
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <p className="text-2xl font-black text-primary">{activeTerm.term} Term</p>
-                  <p className="text-gray-500 font-bold">{activeTerm.session}</p>
-                  <p className={`text-xs font-black mt-1 ${activeTerm.isLocked ? 'text-red-500' : 'text-green-500'}`}>
-                    {activeTerm.isLocked ? '🔒 Upload Locked — Staff cannot upload results' : '🔓 Upload Open — Staff can upload results'}
+                  <p className="text-2xl font-black text-primary tracking-tight">{activeTerm.term} Term</p>
+                  <p className="text-gray-600 font-bold text-sm mt-0.5">{activeTerm.session} Session</p>
+                  <p className={`text-xs font-black mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${activeTerm.isLocked ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+                    {activeTerm.isLocked ? '🔒 Upload Interface Locked' : '🔓 Input Operations Allowed'}
                   </p>
                 </div>
                 <button
                   onClick={handleToggleLock}
-                  className={`px-5 py-2.5 rounded-xl font-black text-sm transition-all ${
+                  className={`px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all ${
                     activeTerm.isLocked
-                      ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+                      ? 'bg-green-600 text-white hover:bg-green-700 shadow-sm'
                       : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
                   }`}
                 >
-                  {activeTerm.isLocked ? '🔓 Unlock Upload' : '🔒 Lock Upload'}
+                  {activeTerm.isLocked ? 'Unlock Portal' : 'Lock Portal Channels'}
                 </button>
               </div>
             </div>
           )}
 
           <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-            <h3 className="font-black text-gray-900 uppercase text-sm tracking-widest mb-4">Set New Active Term</h3>
+            <h3 className="font-black text-gray-400 uppercase text-[10px] tracking-widest mb-4">Transition Active Academic Period</h3>
             {termMsg && (
-              <div className="mb-4 bg-green-50 border border-green-200 rounded-xl p-3">
-                <p className="text-green-700 font-bold text-sm">{termMsg}</p>
+              <div className="mb-4 bg-green-50 border border-green-100 rounded-xl p-3">
+                <p className="text-green-800 font-bold text-xs flex items-center gap-1.5">
+                  <CheckCircle size={14} /> {termMsg}
+                </p>
               </div>
             )}
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Term</label>
+                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Target Term</label>
                 <select
                   value={newTerm}
                   onChange={(e) => setNewTerm(e.target.value)}
-                  className="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:border-primary font-bold"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-primary font-bold text-sm"
                 >
                   {terms.map((t) => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Session</label>
+                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1">Session Target Token</label>
                 <input
                   type="text"
                   value={newSession}
                   onChange={(e) => setNewSession(e.target.value)}
-                  className="w-full p-3 bg-gray-50 border rounded-xl outline-none focus:border-primary font-bold"
+                  className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-primary font-bold text-sm"
                   placeholder="e.g. 2025/2026"
                 />
               </div>
               <button
                 onClick={handleSetActiveTerm}
                 disabled={settingTerm}
-                className="w-full py-3 bg-primary text-white rounded-xl font-black text-sm hover:bg-primary-dark transition-all disabled:opacity-50"
+                className="w-full py-3 bg-primary text-white rounded-xl font-black text-sm hover:bg-opacity-90 transition-all shadow-sm disabled:opacity-50"
               >
-                {settingTerm ? 'Setting...' : 'Set Active Term'}
+                {settingTerm ? 'Updating Core Context...' : 'Commit Operational Transition'}
               </button>
             </div>
           </div>
@@ -483,71 +521,70 @@ const Results = () => {
       {activeTab === 'history' && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
-            {/* UPDATED TITLE IN HISTORY SECTION */}
-            <h3 className="font-black text-gray-900 uppercase text-sm tracking-widest mb-4">
+            <h3 className="font-black text-gray-400 uppercase text-[10px] tracking-widest mb-4">
               Lifespan Result Ledger Lookup
             </h3>
             
-            <div className="flex gap-3 mb-4">
+            <div className="flex gap-3">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-3 text-gray-400" size={16} />
+                <Search className="absolute left-3.5 top-3 text-gray-400" size={16} />
                 <input
                   type="text"
                   value={historySearch}
                   onChange={(e) => setHistorySearch(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleStudentSearch()}
-                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border rounded-xl outline-none focus:border-primary text-sm font-semibold text-gray-700"
-                  placeholder="Search by student name or admission number..."
+                  className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-primary text-sm font-semibold text-gray-700 placeholder-gray-400"
+                  placeholder="Query index by name identifier or registration sequence..."
                 />
               </div>
               <button
                 onClick={handleStudentSearch}
-                disabled={searchingStudents}
-                className="px-6 py-2.5 bg-primary text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-primary-dark transition-all"
+                disabled={searchingStudents || !historySearch.trim()}
+                className="px-6 py-2.5 bg-primary text-white rounded-xl font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-opacity-90 transition-all shadow-sm"
               >
-                {searchingStudents ? 'Searching...' : 'Search'}
+                {searchingStudents ? 'Indexing...' : 'Search'}
               </button>
             </div>
 
             {/* ERROR ALERT DISPLAY */}
             {searchErrorMessage && (
-              <div className="mt-3 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between shadow-sm transition-all">
+              <div className="mt-4 bg-red-50 border border-red-100 rounded-xl p-4 flex items-center justify-between shadow-sm transition-all">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-red-100 rounded-lg text-red-600">
-                    <AlertTriangle size={18} />
+                    <AlertTriangle size={16} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black text-red-800 uppercase tracking-wider">Search Status</p>
-                    <p className="text-xs text-red-700 font-bold mt-0.5">{searchErrorMessage}</p>
+                    <p className="text-[10px] font-black text-red-900 uppercase tracking-wider">Registry Sync Notification</p>
+                    <p className="text-xs text-red-700 font-semibold mt-0.5">{searchErrorMessage}</p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setSearchErrorMessage(null)} 
                   className="p-1 hover:bg-red-100 text-red-500 rounded-lg transition-all"
                 >
-                  <X size={16} />
+                  <X size={15} />
                 </button>
               </div>
             )}
 
             {searchResults.length > 0 && !selectedStudent && (
-              <div className="mt-4 space-y-2">
+              <div className="mt-4 divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden shadow-inner bg-white">
                 {searchResults.map((s) => (
                   <div
                     key={s._id}
                     onClick={() => handleViewHistory(s)}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-primary/5 hover:border-primary border border-transparent transition-all"
+                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50/80 transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary font-black text-sm">
-                        {s.firstName.charAt(0)}
+                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary font-black text-xs">
+                        {s.firstName.charAt(0).toUpperCase()}
                       </div>
                       <div>
                         <p className="font-bold text-gray-900 text-sm">{s.firstName} {s.lastName}</p>
-                        <p className="text-xs text-gray-400">{s.admissionNumber} · Class {s.class}</p>
+                        <p className="text-xs text-gray-400 font-medium">{s.admissionNumber} · Class {s.class}</p>
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-primary">View Ledger History →</span>
+                    <span className="text-xs font-bold text-primary opacity-80 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all">Extract History →</span>
                   </div>
                 ))}
               </div>
@@ -555,65 +592,67 @@ const Results = () => {
           </div>
 
           {selectedStudent && (
-            <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-              <div className="p-6 border-b bg-gray-50 flex items-center justify-between">
+            <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary font-black">
-                    {selectedStudent.firstName.charAt(0)}
+                  <div className="w-9 h-9 bg-primary/10 rounded-full flex items-center justify-center text-primary font-black text-sm">
+                    {selectedStudent.firstName.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h3 className="font-black text-gray-900">{selectedStudent.firstName} {selectedStudent.lastName}</h3>
-                    <p className="text-xs text-gray-500">{selectedStudent.admissionNumber} · Class {selectedStudent.class} · {selectedStudent.department}</p>
+                    <h3 className="font-black text-gray-900 text-sm md:text-base">{selectedStudent.firstName} {selectedStudent.lastName}</h3>
+                    <p className="text-xs text-gray-500 font-medium">{selectedStudent.admissionNumber} · Class {selectedStudent.class} {selectedStudent.department ? `· ${selectedStudent.department}` : ''}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => { setSelectedStudent(null); setSearchResults([]); setHistorySearch(''); setSearchErrorMessage(null); }}
-                  className="text-xs font-bold text-gray-400 hover:text-gray-600"
+                  className="text-xs font-bold text-gray-400 hover:text-gray-600 border border-gray-200 bg-white rounded-lg px-2.5 py-1.5 transition-all shadow-sm"
                 >
-                  &larr; Back to Lookup
+                  &larr; Flush Index Search
                 </button>
               </div>
 
               {loadingHistory ? (
-                <div className="text-center py-12 text-gray-400">Loading history...</div>
+                <div className="text-center py-12 text-gray-400 font-medium text-sm">Parsing structural historical matrix...</div>
               ) : Object.keys(studentHistory).length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <History size={40} className="mx-auto mb-3 opacity-30" />
-                  <p className="font-bold">No approved results found in ledger for this student.</p>
+                <div className="text-center py-16 text-gray-400">
+                  <History size={36} className="mx-auto mb-2 opacity-25" />
+                  <p className="font-bold text-gray-800 text-sm">Zero Valid Records</p>
+                  <p className="text-xs text-gray-400 mt-0.5">No finalized performance structures exist inside the current workspace.</p>
                 </div>
               ) : (
-                <div className="p-6 space-y-8">
+                <div className="p-6 space-y-8 bg-white">
                   {Object.entries(studentHistory).map(([session, termData]) => (
-                    <div key={session}>
-                      <h4 className="font-black text-gray-700 uppercase text-xs tracking-widest mb-4">
-                        <span className="bg-primary text-white px-3 py-1 rounded-full">{session}</span>
-                      </h4>
+                    <div key={session} className="border border-gray-100 rounded-xl p-4 bg-gray-50/30">
+                      <div className="mb-4">
+                        <span className="bg-primary text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider">{session} Session</span>
+                      </div>
+                      
                       {Object.entries(termData).map(([term, results]) => (
-                        <div key={term} className="mb-6">
-                          <p className="font-black text-gray-600 text-sm uppercase mb-3">{term} Term</p>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left border border-gray-100 rounded-xl overflow-hidden">
-                              <thead className="bg-gray-50">
-                                <tr className="text-[10px] font-bold text-gray-400 uppercase">
-                                  <th className="px-4 py-3">Subject</th>
-                                  <th className="px-4 py-3 text-center">C.A</th>
-                                  <th className="px-4 py-3 text-center">Exam</th>
-                                  <th className="px-4 py-3 text-center">Total</th>
-                                  <th className="px-4 py-3 text-center">Grade</th>
-                                  <th className="px-4 py-3 text-center">Remark</th>
+                        <div key={term} className="mb-6 last:mb-0">
+                          <p className="font-black text-gray-700 text-xs uppercase tracking-wide mb-2.5">{term} Term Summary</p>
+                          <div className="overflow-x-auto border border-gray-100 rounded-xl bg-white shadow-sm">
+                            <table className="w-full text-left border-collapse">
+                              <thead className="bg-gray-50 border-b border-gray-100">
+                                <tr className="text-[9px] font-black text-gray-400 uppercase tracking-wider">
+                                  <th className="px-4 py-3">Subject Content</th>
+                                  <th className="px-3 py-3 text-center">C.A</th>
+                                  <th className="px-3 py-3 text-center">Exam</th>
+                                  <th className="px-3 py-3 text-center">Total</th>
+                                  <th className="px-3 py-3 text-center">Grade</th>
+                                  <th className="px-4 py-3 text-center">Remarks</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-50">
                                 {results.map((r: any) => (
-                                  <tr key={r._id} className="hover:bg-gray-50/50">
-                                    <td className="px-4 py-3 font-bold text-gray-700 text-sm">{r.subject}</td>
-                                    <td className="px-4 py-3 text-center text-sm">{r.testScore}</td>
-                                    <td className="px-4 py-3 text-center text-sm">{r.examScore}</td>
-                                    <td className="px-4 py-3 text-center font-black text-primary">{r.totalScore}</td>
-                                    <td className="px-4 py-3 text-center">
-                                      <span className="bg-primary/10 text-primary px-2 py-0.5 rounded font-black text-xs">{r.grade}</span>
+                                  <tr key={r._id} className="hover:bg-gray-50/40 transition-all">
+                                    <td className="px-4 py-3 font-bold text-gray-800 text-xs">{r.subject}</td>
+                                    <td className="px-3 py-3 text-center text-xs text-gray-600 font-medium">{r.testScore}</td>
+                                    <td className="px-3 py-3 text-center text-xs text-gray-600 font-medium">{r.examScore}</td>
+                                    <td className="px-3 py-3 text-center font-black text-primary text-xs">{r.totalScore}</td>
+                                    <td className="px-3 py-3 text-center">
+                                      <span className="bg-primary/5 text-primary px-2 py-0.5 rounded font-black text-[10px] border border-primary/10">{r.grade}</span>
                                     </td>
-                                    <td className="px-4 py-3 text-center text-xs text-gray-500 font-bold">{r.remark}</td>
+                                    <td className="px-4 py-3 text-center text-[11px] text-gray-500 font-bold tracking-tight">{r.remark || 'N/A'}</td>
                                   </tr>
                                 ))}
                               </tbody>

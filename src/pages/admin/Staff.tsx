@@ -50,6 +50,7 @@ const Staff = () => {
   });
 
   const fetchStaff = async () => {
+    if (!token) return; // Prevent making requests without a token
     try {
       setLoading(true);
       const response = await axios.get(
@@ -64,9 +65,16 @@ const Staff = () => {
     }
   };
 
+  // Run whenever the token changes or updates
   useEffect(() => {
     fetchStaff();
-  }, []);
+  }, [token]);
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setSuccessMsg('');
+    setNewCredentials(null);
+  };
 
   const handleAddStaff = async () => {
     if (!form.name || !form.email || !form.role || !form.department) {
@@ -219,7 +227,7 @@ const Staff = () => {
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="font-black text-gray-900 uppercase tracking-tight">Add Staff Member</h2>
-              <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
+              <button onClick={handleCloseModal} className="p-2 hover:bg-gray-100 rounded-full">
                 <X size={18} />
               </button>
             </div>
@@ -273,7 +281,7 @@ const Staff = () => {
 
             <div className="p-6 border-t flex gap-3">
               <button
-                onClick={() => setShowModal(false)}
+                onClick={handleCloseModal}
                 className="flex-1 py-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-all"
               >
                 Cancel
