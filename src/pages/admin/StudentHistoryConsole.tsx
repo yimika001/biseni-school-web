@@ -28,8 +28,10 @@ interface AcademicRecord {
 }
 
 interface StudentProfile {
-  firstName: string;
-  lastName: string;
+  name?: string; 
+  surname: string;     // Aligned directly with student.ts schema
+  firstName: string;   // Aligned directly with student.ts schema
+  middleName?: string; // Aligned directly with student.ts schema
   admissionNumber: string;
   class: string;
   isActive: boolean;
@@ -48,22 +50,28 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
         setLoading(true);
         setError(null);
         
+        const config = {
+          headers: { Authorization: `Bearer ${adminToken}` }
+        };
+
         // Fetch student profile details and academic history in parallel
         const [profileRes, historyRes] = await Promise.all([
-          axios.get(`${import.meta.env.VITE_API_URL}/students/${studentId}`, {
-            headers: { Authorization: `Bearer ${adminToken}` }
-          }),
-          axios.get(`${import.meta.env.VITE_API_URL}/students/${studentId}/history`, {
-            headers: { Authorization: `Bearer ${adminToken}` }
-          })
+          axios.get(`${import.meta.env.VITE_API_URL}/students/${studentId}`, config),
+          axios.get(`${import.meta.env.VITE_API_URL}/students/${studentId}/history`, config).catch(() => ({ data: { records: [] } }))
         ]);
 
-        // Adjust these lines if your backend returns data wrapped differently (e.g., profileRes.data.student)
-        setProfile(profileRes.data.student || profileRes.data);
-        setRecords(historyRes.data.records || historyRes.data || []);
-      } catch (err) {
+        const profileData = profileRes.data?.student || profileRes.data?.data || profileRes.data;
+        setProfile(profileData);
+
+        let historyRecords = [];
+        if (historyRes.data) {
+          historyRecords = historyRes.data.records || historyRes.data.history || (Array.isArray(historyRes.data) ? historyRes.data : []);
+        }
+        setRecords(historyRecords);
+
+      } catch (err: any) {
         console.error('Error fetching archival data:', err);
-        setError('Failed to load this student\'s academic timeline. Please verify backend routes.');
+        setError(err.response?.data?.message || "Failed to load this student's academic timeline. Verify backend controller paths.");
       } finally {
         setLoading(false);
       }
@@ -90,10 +98,16 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
           <AlertCircle size={28} />
         </div>
         <h3 className="text-base font-black text-slate-800 uppercase tracking-wide">Archival Fetch Failed</h3>
-        <p className="text-xs text-slate-500 leading-relaxed font-medium">{error || 'Could not find profile metadata.'}</p>
+        <p className="text-xs text-slate-500 leading-relaxed font-medium">{error || 'Could not discover profile meta-data wrappers.'}</p>
       </div>
     );
   }
+
+  // Beautiful name derivation explicitly respecting your backend Schema structure
+  const middleInitial = profile.middleName ? ` ${profile.middleName.charAt(0)}.` : '';
+  const displayName = profile.surname && profile.firstName
+    ? `${profile.surname.toUpperCase()}, ${profile.firstName}${middleInitial}`
+    : profile.name || 'Registered Student';
 
   const selectedRecord = records[activeRecordIndex];
 
@@ -103,28 +117,28 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
       <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-black text-slate-800">{profile.lastName}, {profile.firstName}</h2>
+            <h2 className="text-xl font-black text-slate-800">{displayName}</h2>
             <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider border ${
-              profile.isActive ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'
+              profile.isActive !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'
             }`}>
-              {profile.isActive ? 'Active' : 'Alumni'}
+              {profile.isActive !== false ? 'Active' : 'Alumni'}
             </span>
           </div>
           <p className="text-xs font-bold text-slate-500 mt-0.5">
-            Admission ID: <span className="font-mono text-slate-700 font-black">{profile.admissionNumber}</span> · Current Class Placement: <span className="text-slate-700 font-black">{profile.class}</span>
+            Admission ID: <span className="font-mono text-slate-700 font-black">{profile.admissionNumber || 'Unassigned'}</span> · Current Class Placement: <span className="text-slate-700 font-black">{profile.class || 'N/A'}</span>
           </p>
         </div>
         <div className="bg-indigo-50 border border-indigo-100 px-4 py-2.5 rounded-xl text-center sm:text-right min-w-[140px]">
-          <span className="text-[10px] font-black text-indigo-400 uppercase tracking-wider block">Total Terms Logged</span>
+          <span className="text-[10px] font-black text-indigo-400 uppercase tracking-wider block">Terms Logged</span>
           <span className="text-xl font-black text-indigo-700">{records.length}</span>
         </div>
       </div>
 
       {records.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400 max-w-md mx-auto">
+        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400 max-w-md mx-auto shadow-sm">
           <BookOpen className="mx-auto text-slate-300 mb-3" size={32} />
           <p className="text-sm font-bold uppercase tracking-wider text-slate-600">No Term Archives Found</p>
-          <p className="text-xs text-slate-400 mt-1">This student profile exists, but no historical term summaries or report sheets have been published yet.</p>
+          <p className="text-xs text-slate-400 mt-1">This profile exists, but no historical summaries or performance parameters have been published yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
@@ -156,7 +170,7 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
           </div>
 
           {/* Right Side: Data Record Viewer */}
-          <div className="lg:col-span-3 space-y-4 animate-in fade-in duration-200">
+          <div className="lg:col-span-3 space-y-4">
             {selectedRecord && (
               <>
                 {/* Meta Highlights Row */}
@@ -176,8 +190,8 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
                       <FileText size={20} />
                     </div>
                     <div>
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide block">Classes Audited</span>
-                      <p className="text-base font-black text-slate-800">{selectedRecord.results.length} Subjects</p>
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide block">Audited Subjects</span>
+                      <p className="text-base font-black text-slate-800">{selectedRecord.results?.length || 0} Registered</p>
                     </div>
                   </div>
                 </div>
@@ -197,7 +211,7 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-xs font-semibold text-slate-700">
-                        {selectedRecord.results.map((res, i) => (
+                        {selectedRecord.results?.map((res, i) => (
                           <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                             <td className="p-4 font-black text-slate-800 uppercase">{res.subject}</td>
                             <td className="p-4 text-center font-mono">{res.caScore}</td>
@@ -205,13 +219,13 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
                             <td className="p-4 text-center font-mono font-bold text-slate-900">{res.totalScore}</td>
                             <td className="p-4 text-center">
                               <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                                res.grade.startsWith('A') || res.grade.startsWith('B')
+                                res.grade?.startsWith('A') || res.grade?.startsWith('B')
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                  : res.grade.startsWith('C') || res.grade.startsWith('P')
+                                  : res.grade?.startsWith('C') || res.grade?.startsWith('P')
                                   ? 'bg-amber-50 text-amber-700 border-amber-100'
                                   : 'bg-red-50 text-red-700 border-red-100'
                               }`}>
-                                {res.grade}
+                                {res.grade || 'N/A'}
                               </span>
                             </td>
                             <td className="p-4 hidden sm:table-cell text-slate-500 text-[11px] italic font-medium">{res.remarks || 'No remarks logged'}</td>
@@ -222,9 +236,9 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
                   </div>
                 </div>
 
-                {/* Instructor/Principal Feedback Footer */}
+                {/* Instructor Feedback Footer */}
                 {selectedRecord.principalRemarks && (
-                  <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 text-xs font-medium">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-medium">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Administrative Endorsement Summary</span>
                     <p className="text-slate-600 italic">"{selectedRecord.principalRemarks}"</p>
                   </div>
