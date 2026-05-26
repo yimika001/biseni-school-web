@@ -25,11 +25,11 @@ const SubjectManagement = () => {
   const [allCurriculums, setAllCurriculums] = useState<ClassSummary[]>([]);
   const [fetchingSummary, setFetchingSummary] = useState(false);
 
-  // 🎯 STRICT RULE: Determine departments dynamically based on class selection
+  // 🎯 STRICT RULE: Junior classes get General. Senior classes get ONLY Science and Arts.
   const isJuniorClass = selectedClass.startsWith('JSS');
-  const departmentsAvailable = isJuniorClass ? ['General'] : ['Science', 'Arts', 'Commerce'];
+  const departmentsAvailable = isJuniorClass ? ['General'] : ['Science', 'Arts'];
 
-  // Automatically reset and force the department dropdown value when the class changes
+  // Dynamically switch state default when toggling between senior/junior levels
   useEffect(() => {
     if (isJuniorClass) {
       setSelectedDept('General');
@@ -42,9 +42,10 @@ const SubjectManagement = () => {
   const fetchCurrentSubjects = async (cls: string, dept: string) => {
     const activeToken = token || localStorage.getItem('bss_token'); 
     
-    // Safety block: Do not send request if token isn't ready or if a senior class is trying to load 'General'
+    // Safety block: Halt request if token isn't ready or if invalid rule pairings happen
     if (!activeToken || activeToken === 'null') return;
     if (!cls.startsWith('JSS') && dept === 'General') return;
+    if (cls.startsWith('JSS') && dept !== 'General') return;
 
     setFetching(true);
     try {
@@ -56,12 +57,12 @@ const SubjectManagement = () => {
     } catch (error: any) {
       console.error("Fetch error:", error);
       setSubjects([]); 
-    } finally {
+    } bits: {
       setFetching(false);
     }
   };
 
-  // Pulls data for clean dashboard summaries adhering strictly to school rules
+  // Pulls matrix data for clean dashboard summary cards
   const fetchAllCurriculumsSummary = async () => {
     const activeToken = token || localStorage.getItem('bss_token');
     if (!activeToken || activeToken === 'null') return;
@@ -71,8 +72,7 @@ const SubjectManagement = () => {
     
     try {
       for (const cls of CLASSES) {
-        // Enforce the rule in the fetch loop so we NEVER ask the backend for SS3/General
-        const depts = cls.startsWith('JSS') ? ['General'] : ['Science', 'Arts', 'Commerce'];
+        const depts = cls.startsWith('JSS') ? ['General'] : ['Science', 'Arts'];
         
         for (const dept of depts) {
           try {
@@ -88,7 +88,7 @@ const SubjectManagement = () => {
               });
             }
           } catch (e) {
-            // Silence 404s for unconfigured classes
+            // Silence 404 logs for unmapped classes
           }
         }
       }
@@ -100,7 +100,7 @@ const SubjectManagement = () => {
     }
   };
 
-  // Guarded tracking loaders
+  // Tracking loaders
   useEffect(() => {
     const activeToken = token || localStorage.getItem('bss_token');
     if (activeToken && activeToken !== 'null') {
@@ -148,7 +148,7 @@ const SubjectManagement = () => {
         {
           classLevel: selectedClass,
           department: selectedDept,
-          subjectList: subjects
+          subjects: subjects // 🌟 SYNCED KEY: Changed from subjectList to subjects
         },
         { headers: { Authorization: `Bearer ${activeToken}` } }
       );
@@ -211,8 +211,8 @@ const SubjectManagement = () => {
               <select 
                 value={selectedDept}
                 onChange={(e) => setSelectedDept(e.target.value)}
-                disabled={isJuniorClass} // Lock dropdown for JSS classes
-                className="w-full p-4 bg-gray-50 border-none rounded-2xl text-sm font-bold text-gray-700 outline-none appearance-none disabled:text-gray-400 disabled:cursor-not-allowed"
+                disabled={isJuniorClass}
+                className="w-full p-4 bg-gray-50 border-none rounded-2xl text-sm font-bold text-gray-700 outline-none appearance-none disabled:text-gray-400 disabled:cursor-not-allowed uppercase"
               >
                 {departmentsAvailable.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
@@ -308,7 +308,6 @@ const SubjectManagement = () => {
                     <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full tracking-wider ${
                       curriculum.department === 'Science' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
                       curriculum.department === 'Arts' ? 'bg-purple-50 text-purple-600 border border-purple-100' :
-                      curriculum.department === 'Commerce' ? 'bg-green-50 text-green-600 border border-green-100' :
                       'bg-orange-50 text-orange-600 border border-orange-100'
                     }`}>
                       {curriculum.department}
@@ -323,7 +322,7 @@ const SubjectManagement = () => {
                   </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-gray-100/70 flex justify-between items-center">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase">{curriculum.subjects.length} Subjects</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">{curriculum.subjects.length} Subjects Registered</span>
                   <button 
                     onClick={() => {
                       setSelectedClass(curriculum.classLevel);
