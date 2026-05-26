@@ -25,7 +25,7 @@ const SubjectManagement = () => {
   const [allCurriculums, setAllCurriculums] = useState<ClassSummary[]>([]);
   const [fetchingSummary, setFetchingSummary] = useState(false);
 
-  // 🎯 STRICT RULE: Junior classes get General. Senior classes get ONLY Science and Arts.
+  // 🎯 STRICT STRUCTURAL RULE: Junior classes get General. Senior classes get ONLY Science and Arts.
   const isJuniorClass = selectedClass.startsWith('JSS');
   const departmentsAvailable = isJuniorClass ? ['General'] : ['Science', 'Arts'];
 
@@ -38,11 +38,11 @@ const SubjectManagement = () => {
     }
   }, [selectedClass, isJuniorClass]);
 
-  // Fetch functions aligned with your backend router paths
+  // Fetch current working subjects for the workspace selection
   const fetchCurrentSubjects = async (cls: string, dept: string) => {
     const activeToken = token || localStorage.getItem('bss_token'); 
     
-    // Safety block: Halt request if token isn't ready or if invalid rule pairings happen
+    // Safety block: Halt request if token isn't ready or if invalid pairings happen
     if (!activeToken || activeToken === 'null') return;
     if (!cls.startsWith('JSS') && dept === 'General') return;
     if (cls.startsWith('JSS') && dept !== 'General') return;
@@ -57,12 +57,12 @@ const SubjectManagement = () => {
     } catch (error: any) {
       console.error("Fetch error:", error);
       setSubjects([]); 
-    } bits: {
+    } finally {
       setFetching(false);
     }
   };
 
-  // Pulls matrix data for clean dashboard summary cards
+  // 🛠️ FIXED MATRIX LOOP: Pulls clean data without requesting General for senior classes
   const fetchAllCurriculumsSummary = async () => {
     const activeToken = token || localStorage.getItem('bss_token');
     if (!activeToken || activeToken === 'null') return;
@@ -72,6 +72,7 @@ const SubjectManagement = () => {
     
     try {
       for (const cls of CLASSES) {
+        // Enforce the layout directly inside the network loop structure
         const depts = cls.startsWith('JSS') ? ['General'] : ['Science', 'Arts'];
         
         for (const dept of depts) {
@@ -88,7 +89,7 @@ const SubjectManagement = () => {
               });
             }
           } catch (e) {
-            // Silence 404 logs for unmapped classes
+            // Silently skip if a particular stream has no subjects saved yet
           }
         }
       }
@@ -100,7 +101,7 @@ const SubjectManagement = () => {
     }
   };
 
-  // Tracking loaders
+  // Monitor workspace adjustments
   useEffect(() => {
     const activeToken = token || localStorage.getItem('bss_token');
     if (activeToken && activeToken !== 'null') {
@@ -108,6 +109,7 @@ const SubjectManagement = () => {
     }
   }, [selectedClass, selectedDept, token]);
 
+  // Initial load tracking hook
   useEffect(() => {
     const activeToken = token || localStorage.getItem('bss_token');
     if (activeToken && activeToken !== 'null') {
@@ -148,7 +150,7 @@ const SubjectManagement = () => {
         {
           classLevel: selectedClass,
           department: selectedDept,
-          subjects: subjects // 🌟 SYNCED KEY: Changed from subjectList to subjects
+          subjects: subjects // Properly synced with your Mongoose model key
         },
         { headers: { Authorization: `Bearer ${activeToken}` } }
       );
