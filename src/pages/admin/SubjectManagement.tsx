@@ -150,9 +150,14 @@ const SubjectManagement = () => {
         {
           classLevel: selectedClass,
           department: selectedDept,
-          subjects: subjects // Properly synced with your Mongoose model key
+          subjects: subjects         
         },
-        { headers: { Authorization: `Bearer ${activeToken}` } }
+        { 
+          headers: { 
+            Authorization: `Bearer ${activeToken}`,
+            'Content-Type': 'application/json' // Explicit content typing
+          } 
+        }
       );
 
       toast.success(`${selectedClass} (${selectedDept}) CURRICULUM UPDATED`, {
