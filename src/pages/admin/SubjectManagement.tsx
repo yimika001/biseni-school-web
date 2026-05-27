@@ -89,7 +89,6 @@ const SubjectManagement = () => {
               { headers: { Authorization: `Bearer ${activeToken}` } }
             );
             
-            // 🔍 SAFELY MATCH BACKEND PACKET OUTPUT VARIATIONS
             let rawSubjects: string[] = [];
             if (res.data) {
               if (Array.isArray(res.data)) {
@@ -101,7 +100,6 @@ const SubjectManagement = () => {
               }
             }
 
-            // Always retain structural visibility over the card grid ecosystem
             summaryData.push({
               classLevel: cls,
               department: dept,
@@ -143,19 +141,30 @@ const SubjectManagement = () => {
     if (!trimmed) return;
     
     if (subjects.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
-      return toast.error("Subject already exists!");
+      return toast.error("Subject already exists in this workspace layout!");
     }
     
     setSubjects([...subjects, trimmed]);
     setNewSubject('');
   };
 
-  const removeSubject = (index: number) => {
-    setSubjects(prev => prev.filter((_, i) => i !== index));
+  // 🛡️ CONFIRMATION DIALOG INTERCEPTOR FOR WORKSPACE EDITOR DELETES
+  const handleRemoveSubjectWithConfirmation = (subjectName: string, index: number) => {
+    const activeDeptLabel = selectedClass.startsWith('JSS') ? 'General' : selectedDept;
+    const confirmMessage = `Are you sure you want to delete "${subjectName.toUpperCase()}" for ${selectedClass} (${activeDeptLabel})? \n\nClick OK to confirm deletion. You must click 'Save Configuration' afterwards to persist this change to the database.`;
+    
+    if (window.confirm(confirmMessage)) {
+      setSubjects(prev => prev.filter((_, i) => i !== index));
+      toast.success(`Removed ${subjectName} locally from layout workspace.`);
+    }
   };
 
-  // 🛠️ NEW EXTENSION: Direct Matrix Card Delete Engine
+  // 🛡️ CONFIRMATION DIALOG INTERCEPTOR FOR DIRECT MATRIX CARD DELETES
   const deleteSubjectDirectly = async (classLevel: string, department: string, subjectToDelete: string) => {
+    const confirmMessage = `Are you sure you want to delete "${subjectToDelete.toUpperCase()}" directly from ${classLevel} (${department})?\n\nThis will instantly update the live database.`;
+    
+    if (!window.confirm(confirmMessage)) return;
+
     const activeToken = token || localStorage.getItem('bss_token');
     if (!activeToken || activeToken === 'null') return toast.error("Session expired.");
 
@@ -175,21 +184,21 @@ const SubjectManagement = () => {
         { headers: { Authorization: `Bearer ${activeToken}`, 'Content-Type': 'application/json' } }
       );
 
-      toast.success(`Removed ${subjectToDelete} from ${classLevel}`);
+      toast.success(`Successfully deleted ${subjectToDelete} from database`);
       
+      // If the admin happens to have this specific class open in the workspace editor, update it live too
       if (selectedClass === classLevel && selectedDept === department) {
         setSubjects(remainingSubjects);
       }
       
       fetchAllCurriculumsSummary();
     } catch (err) {
-      toast.error("Failed to update layout choice mapping.");
+      toast.error("Failed to execute live database change map update.");
     }
   };
 
   const saveConfiguration = async () => {
     const activeToken = token || localStorage.getItem('bss_token');
-    
     if (!activeToken || activeToken === 'null') {
       return toast.error("Authentication session missing. Please log in again.");
     }
@@ -321,7 +330,7 @@ const SubjectManagement = () => {
                 <div key={index} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group hover:border-primary/20 hover:bg-white transition-all">
                   <span className="text-sm font-black text-gray-700 uppercase tracking-tight">{sub}</span>
                   <button 
-                    onClick={() => removeSubject(index)}
+                    onClick={() => handleRemoveSubjectWithConfirmation(sub, index)}
                     className="text-gray-300 hover:text-red-500 p-2 rounded-lg transition-colors"
                   >
                     <Trash2 size={16} />
@@ -400,7 +409,7 @@ const SubjectManagement = () => {
                       setSelectedDept(curriculum.department);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
-                    className="text-[11px] font-extrabold text-primary hover:underline uppercase"
+                    className="text-[11px] font-extrabold text-primary hover:underline uppercase transition-all hover:scale-105"
                   >
                     Edit
                   </button>
