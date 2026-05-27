@@ -41,8 +41,6 @@ const SubjectManagement = () => {
   // Fetch current working subjects for the workspace selection
   const fetchCurrentSubjects = async (cls: string, dept: string) => {
     const activeToken = token || localStorage.getItem('bss_token'); 
-    
-    // Safety block: Halt request if token isn't ready or if invalid pairings happen
     if (!activeToken || activeToken === 'null') return;
     if (!cls.startsWith('JSS') && dept === 'General') return;
     if (cls.startsWith('JSS') && dept !== 'General') return;
@@ -62,7 +60,7 @@ const SubjectManagement = () => {
     }
   };
 
-  // 🛠️ FIXED MATRIX LOOP: Pulls clean data without requesting General for senior classes
+  // Pulls clean matrix data for all classes
   const fetchAllCurriculumsSummary = async () => {
     const activeToken = token || localStorage.getItem('bss_token');
     if (!activeToken || activeToken === 'null') return;
@@ -72,9 +70,7 @@ const SubjectManagement = () => {
     
     try {
       for (const cls of CLASSES) {
-        // Enforce the layout directly inside the network loop structure
         const depts = cls.startsWith('JSS') ? ['General'] : ['Science', 'Arts'];
-        
         for (const dept of depts) {
           try {
             const res = await axios.get(
@@ -89,7 +85,7 @@ const SubjectManagement = () => {
               });
             }
           } catch (e) {
-            // Silently skip if a particular stream has no subjects saved yet
+            // Skip empty streams
           }
         }
       }
@@ -101,11 +97,13 @@ const SubjectManagement = () => {
     }
   };
 
-  // Monitor workspace adjustments
+  // Monitor workspace adjustments safely without clearing data during active saves
   useEffect(() => {
     const activeToken = token || localStorage.getItem('bss_token');
+    const balancedDept = selectedClass.startsWith('JSS') ? 'General' : (selectedDept === 'General' ? 'Science' : selectedDept);
+
     if (activeToken && activeToken !== 'null') {
-      fetchCurrentSubjects(selectedClass, selectedDept);
+      fetchCurrentSubjects(selectedClass, balancedDept);
     }
   }, [selectedClass, selectedDept, token]);
 
@@ -133,15 +131,51 @@ const SubjectManagement = () => {
     setSubjects(prev => prev.filter((_, i) => i !== index));
   };
 
+  // 🛠️ NEW EXTENSION: Direct Matrix Card Delete Engine
+  const deleteSubjectDirectly = async (classLevel: string, department: string, subjectToDelete: string) => {
+    const activeToken = token || localStorage.getItem('bss_token');
+    if (!activeToken || activeToken === 'null') return toast.error("Session expired.");
+
+    // Filter out target item from card metadata state representation
+    const targetedConfig = allCurriculums.find(c => c.classLevel === classLevel && c.department === department);
+    if (!targetedConfig) return;
+
+    const remainingSubjects = targetedConfig.subjects.filter(s => s !== subjectToDelete);
+
+    try {
+      await axios.post(
+        `${import.meta.env.VITE_API_URL}/admin/subjects`,
+        {
+          classLevel,
+          department,
+          subjects: remainingSubjects         
+        },
+        { headers: { Authorization: `Bearer ${activeToken}`, 'Content-Type': 'application/json' } }
+      );
+
+      toast.success(`Removed ${subjectToDelete} from ${classLevel}`);
+      
+      // Sync workspace view if admin is actively looking at that target class layout right now
+      if (selectedClass === classLevel && selectedDept === department) {
+        setSubjects(remainingSubjects);
+      }
+      
+      fetchAllCurriculumsSummary();
+    } catch (err) {
+      toast.error("Failed to update layout choice mapping.");
+    }
+  };
+
   const saveConfiguration = async () => {
     const activeToken = token || localStorage.getItem('bss_token');
     
     if (!activeToken || activeToken === 'null') {
       return toast.error("Authentication session missing. Please log in again.");
     }
-    if (subjects.length === 0) {
-      return toast.error("Please add at least one subject before saving.");
-    }
+
+    const correctDepartment = selectedClass.startsWith('JSS') 
+      ? 'General' 
+      : (selectedDept === 'General' ? 'Science' : selectedDept);
 
     setLoading(true);
     try {
@@ -149,26 +183,22 @@ const SubjectManagement = () => {
         `${import.meta.env.VITE_API_URL}/admin/subjects`,
         {
           classLevel: selectedClass,
-          department: selectedDept,
+          department: correctDepartment,
           subjects: subjects         
         },
-        { 
-          headers: { 
-            Authorization: `Bearer ${activeToken}`,
-            'Content-Type': 'application/json' // Explicit content typing
-          } 
-        }
+        { headers: { Authorization: `Bearer ${activeToken}`, 'Content-Type': 'application/json' } }
       );
 
-      toast.success(`${selectedClass} (${selectedDept}) CURRICULUM UPDATED`, {
+      toast.success(`${selectedClass} (${correctDepartment}) CURRICULUM UPDATED`, {
         duration: 3000,
         position: 'top-center',
         style: { background: '#059669', color: '#fff', fontWeight: '800' }
       });
 
-      fetchAllCurriculumsSummary();
+      await fetchAllCurriculumsSummary();
+      await fetchCurrentSubjects(selectedClass, correctDepartment);
     } catch (error: any) {
-      console.error("Save error details:", error.response?.data || error.message);
+      console.error("Save error:", error.response?.data || error.message);
       toast.error(error.response?.data?.message || "Failed to update curriculum.");
     } finally {
       setLoading(false);
@@ -187,7 +217,7 @@ const SubjectManagement = () => {
            <h1 className="text-3xl font-black text-gray-900 uppercase italic tracking-tight">Curriculum Management</h1>
         </div>
         <p className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.2em]">
-          Editing Workspace: <span className="text-primary">{selectedClass}</span> <span className="mx-2 text-gray-200">|</span> {selectedDept}
+          Editing Workspace: <span className="text-primary">{selectedClass}</span> <span className="mx-2 text-gray-200">|</span> {selectedClass.startsWith('JSS') ? 'General' : selectedDept}
         </p>
       </div>
 
@@ -216,7 +246,7 @@ const SubjectManagement = () => {
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mt-8 mb-4 italic">Department Allocation</label>
             <div className="relative">
               <select 
-                value={selectedDept}
+                value={selectedClass.startsWith('JSS') ? 'General' : (selectedDept === 'General' ? 'Science' : selectedDept)}
                 onChange={(e) => setSelectedDept(e.target.value)}
                 disabled={isJuniorClass}
                 className="w-full p-4 bg-gray-50 border-none rounded-2xl text-sm font-bold text-gray-700 outline-none appearance-none disabled:text-gray-400 disabled:cursor-not-allowed uppercase"
@@ -271,7 +301,7 @@ const SubjectManagement = () => {
                   <span className="text-sm font-black text-gray-700 uppercase tracking-tight">{sub}</span>
                   <button 
                     onClick={() => removeSubject(index)}
-                    className="text-gray-300 hover:text-red-500 p-2 rounded-lg"
+                    className="text-gray-300 hover:text-red-500 p-2 rounded-lg transition-colors"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -320,14 +350,24 @@ const SubjectManagement = () => {
                       {curriculum.department}
                     </span>
                   </div>
+                  
+                  {/* 🛠️ ENHANCED VIEW: Displaying subjects inside matrix chips with active remove delete icons */}
                   <div className="flex flex-wrap gap-1.5 mt-4 max-h-40 overflow-y-auto">
                     {curriculum.subjects.map((s, sIdx) => (
-                      <span key={sIdx} className="text-[11px] font-bold bg-white text-gray-600 px-2.5 py-1 rounded-lg border border-gray-100 uppercase">
-                        {s}
-                      </span>
+                      <div key={sIdx} className="flex items-center gap-1 text-[11px] font-bold bg-white text-gray-600 pl-2.5 pr-1.5 py-1 rounded-lg border border-gray-100 uppercase group/chip hover:border-red-200 hover:bg-red-50/20 transition-all">
+                        <span>{s}</span>
+                        <button
+                          onClick={() => deleteSubjectDirectly(curriculum.classLevel, curriculum.department, s)}
+                          className="text-gray-300 hover:text-red-500 p-0.5 rounded transition-colors"
+                          title={`Delete ${s}`}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </div>
                     ))}
                   </div>
                 </div>
+                
                 <div className="mt-4 pt-3 border-t border-gray-100/70 flex justify-between items-center">
                   <span className="text-[10px] font-bold text-gray-400 uppercase">{curriculum.subjects.length} Subjects Registered</span>
                   <button 
