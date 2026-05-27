@@ -227,17 +227,17 @@ const Students = () => {
   };
 
   return (
-    <div className="p-6 lg:p-8 pb-24 md:pb-8">
+    <div className="p-4 md:p-6 lg:p-8 pb-24 md:pb-8">
 
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 md:mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Student Management</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Student Management</h1>
           <p className="text-gray-500 text-sm">Showing system portal registry slices</p>
         </div>
         <button
           onClick={() => { setShowModal(true); setSuccessMsg(''); setNewCredentials(null); }}
-          className="flex items-center justify-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold hover:bg-primary-dark transition-all shadow-md shadow-primary/20"
+          className="flex items-center justify-center gap-2 bg-primary text-white px-5 py-2.5 rounded-lg font-bold hover:bg-primary-dark transition-all shadow-md shadow-primary/20 text-sm md:text-base"
         >
           <UserPlus size={18} /> Add New Student
         </button>
@@ -250,7 +250,7 @@ const Students = () => {
           <input
             type="text"
             placeholder="Search by name or admission number..."
-            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-primary transition-all"
+            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg outline-none focus:border-primary transition-all text-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -258,18 +258,19 @@ const Students = () => {
         <select
           value={filterClass}
           onChange={(e) => setFilterClass(e.target.value)}
-          className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 font-medium bg-white outline-none focus:border-primary"
+          className="px-4 py-2 border border-gray-200 rounded-lg text-gray-600 font-medium bg-white outline-none focus:border-primary text-sm"
         >
           <option value="">All Classes</option>
           {classes.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
 
-      {/* Table */}
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+      {/* Table Container */}
+      <div className="bg-white border border-gray-100 md:rounded-xl shadow-sm overflow-hidden rounded-lg">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-100">
+          <table className="w-full text-left border-collapse">
+            {/* Table Header - Only visible on desktop/tablet */}
+            <thead className="bg-gray-50 border-b border-gray-100 hidden md:table-header-group">
               <tr>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Student Name</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Admission No.</th>
@@ -278,16 +279,17 @@ const Students = () => {
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+
+            <tbody className="block md:table-row-group divide-y divide-gray-100">
               {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-xs font-bold text-gray-400 uppercase tracking-widest">
+                <tr className="block md:table-row">
+                  <td colSpan={5} className="px-6 py-12 text-center text-xs font-bold text-gray-400 uppercase tracking-widest block md:table-cell">
                     Querying school database...
                   </td>
                 </tr>
               ) : students.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12">
+                <tr className="block md:table-row">
+                  <td colSpan={5} className="px-6 py-12 block md:table-cell">
                     <div className="max-w-sm mx-auto p-4 text-center border border-dashed border-amber-200 rounded-xl bg-amber-50/40">
                       <AlertCircle className="mx-auto text-amber-500 mb-2" size={22} />
                       <p className="text-xs font-black text-amber-900 uppercase tracking-tight">
@@ -303,37 +305,81 @@ const Students = () => {
                 </tr>
               ) : (
                 students.map((student) => (
-                  <tr key={student._id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-gray-900">
-                        {student.surname?.toUpperCase()}, {student.firstName} {student.middleName || ''}
+                  /* Responsive Wrapper: Turns into a self-contained card frame on mobile layout screens */
+                  <tr 
+                    key={student._id} 
+                    className="block md:table-row hover:bg-gray-50/50 transition-colors p-4 md:p-0 border-b border-gray-100 last:border-0 md:border-b-0"
+                  >
+                    {/* Name Column */}
+                    <td className="block md:table-cell md:px-6 md:py-4 pb-3">
+                      <div className="flex justify-between items-start md:block">
+                        <div>
+                          <div className="font-bold text-gray-900 text-sm md:text-base">
+                            {student.surname?.toUpperCase()}, {student.firstName} {student.middleName || ''}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-0.5 md:mt-0">
+                            {student.gender} · {student.department}
+                          </div>
+                        </div>
+                        {/* Quick Class Badge display on phone top right corner layout */}
+                        <span className="md:hidden px-2.5 py-0.5 bg-gray-100 text-gray-600 rounded-full text-[11px] font-bold">
+                          {student.class}
+                        </span>
                       </div>
-                      <div className="text-xs text-gray-400">{student.gender} · {student.department}</div>
                     </td>
-                    <td className="px-6 py-4 text-gray-600 font-medium">{student.admissionNumber}</td>
-                    <td className="px-6 py-4">
+
+                    {/* Meta Information Container (Admission No, Class, Status, Actions) - Grid structure on Mobile */}
+                    <td className="block md:table-cell md:px-6 md:py-4 py-2 border-t border-dashed border-gray-100 md:border-none">
+                      <div className="grid grid-cols-2 md:block gap-y-2">
+                        <div className="md:hidden text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center">
+                          Admission No.
+                        </div>
+                        <div className="text-gray-700 md:text-gray-600 text-sm font-medium md:font-bold">
+                          {student.admissionNumber}
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Class Column - Hidden completely on mobile view since it exists in the top right header area badge context */}
+                    <td className="hidden md:table-cell md:px-6 md:py-4">
                       <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-bold">
                         {student.class}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <select
-                        value={student.feesStatus}
-                        onChange={(e) => handleFeesUpdate(student._id, e.target.value)}
-                        className={`px-3 py-1 border rounded-full text-[10px] uppercase font-bold outline-none cursor-pointer ${getStatusStyle(student.feesStatus)}`}
-                      >
-                        <option value="Paid">Paid</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Part-Payment">Part-Payment</option>
-                      </select>
+
+                    {/* Fees Status Dropdown Column */}
+                    <td className="block md:table-cell md:px-6 md:py-4 py-2">
+                      <div className="grid grid-cols-2 md:block items-center">
+                        <div className="md:hidden text-xs font-bold text-gray-400 uppercase tracking-wider">
+                          Fees Status
+                        </div>
+                        <div>
+                          <select
+                            value={student.feesStatus}
+                            onChange={(e) => handleFeesUpdate(student._id, e.target.value)}
+                            className={`px-3 py-1 border rounded-full text-[10px] uppercase font-bold outline-none cursor-pointer w-fit ${getStatusStyle(student.feesStatus)}`}
+                          >
+                            <option value="Paid">Paid</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Part-Payment">Part-Payment</option>
+                          </select>
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <button
-                        onClick={() => initiateDeleteRequest(student)}
-                        className="p-2 hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+
+                    {/* Actions Controller Row Segment */}
+                    <td className="block md:table-cell md:px-6 md:py-4 pt-3 md:text-right border-t border-dashed border-gray-100 md:border-none">
+                      <div className="flex justify-between md:justify-end items-center">
+                        <div className="md:hidden text-xs font-bold text-gray-400 uppercase tracking-wider">
+                          Actions Management
+                        </div>
+                        <button
+                          onClick={() => initiateDeleteRequest(student)}
+                          className="p-2 md:hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 transition-all flex items-center justify-center bg-gray-50 md:bg-transparent"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -345,22 +391,22 @@ const Students = () => {
         {/* ✅ STYLIZED PAGINATION NAVIGATION INTERFACE FOOTER */}
         {!loading && students.length > 0 && (
           <div className="px-6 py-4 bg-gray-50/70 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide text-center sm:text-left">
               Page <span className="text-gray-900 font-extrabold">{page}</span> of{' '}
               <span className="text-gray-900 font-extrabold">{totalPages}</span>
               {totalFilteredRecords > 0 && (
-                <span className="font-medium text-gray-400 lowercase tracking-normal ml-1.5">
+                <span className="font-medium text-gray-400 lowercase tracking-normal block sm:inline sm:ml-1.5">
                   ({totalFilteredRecords} total matches)
                 </span>
               )}
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-center">
               <button
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-                className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition-all select-none"
+                className="flex items-center justify-center gap-1.5 px-4 py-2 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition-all select-none flex-1 sm:flex-initial"
               >
                 <ChevronLeft size={14} /> Prev
               </button>
@@ -369,7 +415,7 @@ const Students = () => {
                 type="button"
                 disabled={page >= totalPages}
                 onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
-                className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition-all select-none"
+                className="flex items-center justify-center gap-1.5 px-4 py-2 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition-all select-none flex-1 sm:flex-initial"
               >
                 Next <ChevronRight size={14} />
               </button>
