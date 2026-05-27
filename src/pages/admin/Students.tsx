@@ -6,8 +6,9 @@ import { useAuth } from '../../context/AuthContext';
 interface Student {
   _id: string;
   admissionNumber: string;
+  surname: string;       
   firstName: string;
-  lastName: string;
+  middleName?: string;   
   class: string;
   department: string;
   gender: string;
@@ -17,8 +18,9 @@ interface Student {
 }
 
 interface NewStudent {
+  surname: string;       
   firstName: string;
-  lastName: string;
+  middleName: string;    
   gender: string;
   class: string;
   department: string;
@@ -30,7 +32,6 @@ const classes = ['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3'];
 const departments = ['JSS', 'Sciences', 'Arts', 'Commercial', 'Vocational'];
 
 const Students = () => {
-  // Pull context with a programmatic local fallback to guard against string serialization drops
   const { token: contextToken } = useAuth();
   const activeToken = contextToken || localStorage.getItem('bss_token');
 
@@ -43,9 +44,15 @@ const Students = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [newCredentials, setNewCredentials] = useState<{ admissionNumber: string; defaultPassword: string } | null>(null);
 
+  // 🛠️ DELETE MODAL STATE CONFIGURATIONS
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
   const [form, setForm] = useState<NewStudent>({
+    surname: '',        
     firstName: '',
-    lastName: '',
+    middleName: '',     
     gender: 'Male',
     class: 'JSS1',
     department: 'JSS',
@@ -89,7 +96,7 @@ const Students = () => {
   }, [searchTerm, filterClass]);
 
   const handleAddStudent = async () => {
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.class || !form.department) {
+    if (!form.surname.trim() || !form.firstName.trim() || !form.class || !form.department) {
       alert('Please fill in all required fields.');
       return;
     }
@@ -120,8 +127,9 @@ const Students = () => {
       fetchStudents();
       
       setForm({
+        surname: '',
         firstName: '',
-        lastName: '',
+        middleName: '',
         gender: 'Male',
         class: 'JSS1',
         department: 'JSS',
@@ -136,16 +144,28 @@ const Students = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this student?')) return;
+  // 🛠️ OPEN OVERLAY TRIGGER INSTEAD OF NATIVE POPUP
+  const initiateDeleteRequest = (student: Student) => {
+    setStudentToDelete(student);
+    setShowDeleteModal(true);
+  };
+
+  // 🛠️ CONFIRMED CASCADE DELETE METHOD
+  const handleConfirmedDelete = async () => {
+    if (!studentToDelete) return;
     try {
+      setDeleting(true);
       await axios.delete(
-        `${import.meta.env.VITE_API_URL}/students/${id}`,
+        `${import.meta.env.VITE_API_URL}/students/${studentToDelete._id}`,
         { headers: { Authorization: `Bearer ${activeToken}` } }
       );
+      setShowDeleteModal(false);
+      setStudentToDelete(null);
       fetchStudents();
     } catch (error) {
       alert('Failed to delete student.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -250,8 +270,9 @@ const Students = () => {
                 students.map((student) => (
                   <tr key={student._id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
-                      {/* Displays Last Name (Surname) first for proper academic listing formatting */}
-                      <div className="font-bold text-gray-900">{student.lastName}, {student.firstName}</div>
+                      <div className="font-bold text-gray-900">
+                        {student.surname?.toUpperCase()}, {student.firstName} {student.middleName || ''}
+                      </div>
                       <div className="text-xs text-gray-400">{student.gender} · {student.department}</div>
                     </td>
                     <td className="px-6 py-4 text-gray-600 font-medium">{student.admissionNumber}</td>
@@ -273,7 +294,7 @@ const Students = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => handleDelete(student._id)}
+                        onClick={() => initiateDeleteRequest(student)} // 🛠️ ALTERED TO CALL CUSTOM MODAL SCRIPT
                         className="p-2 hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 transition-all"
                       >
                         <Trash2 size={16} />
@@ -290,7 +311,7 @@ const Students = () => {
       {/* Add Student Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl transition-all">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="font-black text-gray-900 uppercase tracking-tight">Register New Student</h2>
               <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
@@ -298,7 +319,7 @@ const Students = () => {
               </button>
             </div>
 
-            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
               {successMsg && (
                 <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                   <p className="text-green-700 font-bold text-sm mb-2">{successMsg}</p>
@@ -312,15 +333,15 @@ const Students = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Surname *</label>
                   <input
                     type="text"
-                    value={form.lastName}
-                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                    value={form.surname}
+                    onChange={(e) => setForm({ ...form, surname: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
-                    placeholder="e.g. Jonah"
+                    placeholder="e.g. Victor"
                   />
                 </div>
                 <div>
@@ -330,7 +351,17 @@ const Students = () => {
                     value={form.firstName}
                     onChange={(e) => setForm({ ...form, firstName: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
-                    placeholder="e.g. Amaka"
+                    placeholder="e.g. Oluwayimika"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Middle Name</label>
+                  <input
+                    type="text"
+                    value={form.middleName}
+                    onChange={(e) => setForm({ ...form, middleName: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
+                    placeholder="e.g. Optional"
                   />
                 </div>
               </div>
@@ -411,6 +442,48 @@ const Students = () => {
           </div>
         </div>
       )}
+
+      {/* 🛠️ NEW: APP-STYLE DELETE CONFIRMATION OVERLAY MODAL */}
+      {showDeleteModal && studentToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-100 transition-all">
+            <div className="p-6 text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 text-red-600 mb-4">
+                <Trash2 size={24} />
+              </div>
+              <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight mb-2">
+                Confirm Deletion
+              </h3>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                Are you sure you want to delete{' '}
+                <span className="font-bold text-gray-800">
+                  {studentToDelete.surname?.toUpperCase()}, {studentToDelete.firstName} ({studentToDelete.class})
+                </span>
+                ? This action is permanent and completely clears their records.
+              </p>
+            </div>
+            <div className="bg-gray-50 px-6 py-4 flex gap-3">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => { setShowDeleteModal(false); setStudentToDelete(null); }}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleConfirmedDelete}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-md shadow-red-600/10 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

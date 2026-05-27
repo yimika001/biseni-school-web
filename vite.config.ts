@@ -14,4 +14,20 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600, // Raises the alert ceiling to 600kB to avoid false alarms
+    rollupOptions: {
+      output: {
+        // Splits heavy node_modules dependencies into separate bundles
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons'; // Puts icons into their own file
+            }
+            return 'vendor-core'; // Puts axios, react, and other libraries here
+          }
+        },
+      },
+    },
+  },
 });
