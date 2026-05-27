@@ -51,7 +51,18 @@ const SubjectManagement = () => {
         `${import.meta.env.VITE_API_URL}/admin/subjects/${cls}/${dept}`,
         { headers: { Authorization: `Bearer ${activeToken}` } }
       );
-      setSubjects(res.data.subjects || []);
+      
+      let parsedSubjects: string[] = [];
+      if (res.data) {
+        if (Array.isArray(res.data)) {
+          parsedSubjects = res.data;
+        } else if (res.data.subjects && Array.isArray(res.data.subjects)) {
+          parsedSubjects = res.data.subjects;
+        } else if (res.data.data && Array.isArray(res.data.data.subjects)) {
+          parsedSubjects = res.data.data.subjects;
+        }
+      }
+      setSubjects(parsedSubjects);
     } catch (error: any) {
       console.error("Fetch error:", error);
       setSubjects([]); 
@@ -77,15 +88,27 @@ const SubjectManagement = () => {
               `${import.meta.env.VITE_API_URL}/admin/subjects/${cls}/${dept}`,
               { headers: { Authorization: `Bearer ${activeToken}` } }
             );
-            if (res.data.subjects && res.data.subjects.length > 0) {
-              summaryData.push({
-                classLevel: cls,
-                department: dept,
-                subjects: res.data.subjects
-              });
+            
+            // 🔍 SAFELY MATCH BACKEND PACKET OUTPUT VARIATIONS
+            let rawSubjects: string[] = [];
+            if (res.data) {
+              if (Array.isArray(res.data)) {
+                rawSubjects = res.data;
+              } else if (res.data.subjects && Array.isArray(res.data.subjects)) {
+                rawSubjects = res.data.subjects;
+              } else if (res.data.data && Array.isArray(res.data.data.subjects)) {
+                rawSubjects = res.data.data.subjects;
+              }
             }
+
+            // Always retain structural visibility over the card grid ecosystem
+            summaryData.push({
+              classLevel: cls,
+              department: dept,
+              subjects: rawSubjects
+            });
           } catch (e) {
-            // Skip empty streams
+            console.error(`Skipping or empty stream config for ${cls}-${dept}`);
           }
         }
       }
@@ -136,7 +159,6 @@ const SubjectManagement = () => {
     const activeToken = token || localStorage.getItem('bss_token');
     if (!activeToken || activeToken === 'null') return toast.error("Session expired.");
 
-    // Filter out target item from card metadata state representation
     const targetedConfig = allCurriculums.find(c => c.classLevel === classLevel && c.department === department);
     if (!targetedConfig) return;
 
@@ -155,7 +177,6 @@ const SubjectManagement = () => {
 
       toast.success(`Removed ${subjectToDelete} from ${classLevel}`);
       
-      // Sync workspace view if admin is actively looking at that target class layout right now
       if (selectedClass === classLevel && selectedDept === department) {
         setSubjects(remainingSubjects);
       }
@@ -351,20 +372,23 @@ const SubjectManagement = () => {
                     </span>
                   </div>
                   
-                  {/* 🛠️ ENHANCED VIEW: Displaying subjects inside matrix chips with active remove delete icons */}
                   <div className="flex flex-wrap gap-1.5 mt-4 max-h-40 overflow-y-auto">
-                    {curriculum.subjects.map((s, sIdx) => (
-                      <div key={sIdx} className="flex items-center gap-1 text-[11px] font-bold bg-white text-gray-600 pl-2.5 pr-1.5 py-1 rounded-lg border border-gray-100 uppercase group/chip hover:border-red-200 hover:bg-red-50/20 transition-all">
-                        <span>{s}</span>
-                        <button
-                          onClick={() => deleteSubjectDirectly(curriculum.classLevel, curriculum.department, s)}
-                          className="text-gray-300 hover:text-red-500 p-0.5 rounded transition-colors"
-                          title={`Delete ${s}`}
-                        >
-                          <Trash2 size={11} />
-                        </button>
-                      </div>
-                    ))}
+                    {curriculum.subjects.length > 0 ? (
+                      curriculum.subjects.map((s, sIdx) => (
+                        <div key={sIdx} className="flex items-center gap-1 text-[11px] font-bold bg-white text-gray-600 pl-2.5 pr-1.5 py-1 rounded-lg border border-gray-100 uppercase group/chip hover:border-red-200 hover:bg-red-50/20 transition-all">
+                          <span>{s}</span>
+                          <button
+                            onClick={() => deleteSubjectDirectly(curriculum.classLevel, curriculum.department, s)}
+                            className="text-gray-300 hover:text-red-500 p-0.5 rounded transition-colors"
+                            title={`Delete ${s}`}
+                          >
+                            <Trash2 size={11} />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="text-[10px] font-bold text-gray-400 italic uppercase tracking-wider py-1">No subjects assigned</span>
+                    )}
                   </div>
                 </div>
                 
