@@ -233,7 +233,17 @@ const Students = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 md:mb-8">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">Student Management</h1>
-          <p className="text-gray-500 text-sm">Showing system portal registry slices</p>
+          <p className="text-gray-500 text-sm font-medium">
+            {searchTerm || filterClass ? (
+              <>
+                Showing <span className="text-primary font-bold">{totalFilteredRecords}</span> {totalFilteredRecords === 1 ? 'record' : 'records'} matching your filters
+              </>
+            ) : (
+              <>
+                Showing <span className="text-gray-900 font-bold">{totalFilteredRecords}</span> registered students total
+              </>
+            )}
+          </p>
         </div>
         <button
           onClick={() => { setShowModal(true); setSuccessMsg(''); setNewCredentials(null); }}
