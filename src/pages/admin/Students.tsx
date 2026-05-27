@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, UserPlus, X, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Search, UserPlus, X, Trash2, AlertCircle, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -40,10 +40,16 @@ const Students = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false); // ✅ Added state for success modal
+  const [showSuccessModal, setShowSuccessModal] = useState(false); 
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
-  const [newCredentials, setNewCredentials] = useState<{ admissionNumber: string; defaultPassword: string } | null>(null);
+  const [newCredentials, setNewCredentials] = useState<{ name: string; admissionNumber: string; defaultPassword: string } | null>(null);
+
+  // 🛠️ PAGINATION STATE CONFIGURATIONS
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalFilteredRecords, setTotalFilteredRecords] = useState(0);
+  const limitSetting = 20; // Loads 20 students per data slice automatically
 
   // 🛠️ DELETE MODAL STATE CONFIGURATIONS
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -61,10 +67,28 @@ const Students = () => {
     admissionYear: new Date().getFullYear().toString(),
   });
 
+  // 🛠️ AUTOMATIC CAPITALIZATION FORMATTERS
+  const formatToUpperCase = (val: string) => val.toUpperCase();
+  const formatToTitleCase = (val: string) => {
+    return val
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
+  // Reset page counter back to 1 whenever filtering query definitions alter
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterClass]);
+
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      const params: any = {};
+      const params: any = {
+        page: page,
+        limit: limitSetting
+      };
       if (searchTerm) params.search = searchTerm;
       if (filterClass) params.class = filterClass;
 
@@ -84,7 +108,10 @@ const Students = () => {
           params 
         }
       );
+      
       setStudents(response.data.students || []);
+      setTotalPages(response.data.totalPages || 1);
+      setTotalFilteredRecords(response.data.totalFiltered || response.data.count || 0);
     } catch (error) {
       console.error('Failed to fetch students:', error);
     } finally {
@@ -94,7 +121,7 @@ const Students = () => {
 
   useEffect(() => {
     fetchStudents();
-  }, [searchTerm, filterClass]);
+  }, [page, searchTerm, filterClass]);
 
   const handleAddStudent = async () => {
     if (!form.surname.trim() || !form.firstName.trim() || !form.class || !form.department) {
@@ -112,22 +139,28 @@ const Students = () => {
         { headers: { Authorization: `Bearer ${activeToken}` } }
       );
 
-      // ✅ Updated to cleanly target response.data.credentials matching backend payloads
+      // Construct a clean full name layout for the success modal view
+      const registeredName = form.middleName.trim()
+        ? `${form.surname.trim().toUpperCase()}, ${form.firstName.trim()} ${form.middleName.trim()}`
+        : `${form.surname.trim().toUpperCase()}, ${form.firstName.trim()}`;
+
       if (response.data && response.data.credentials) {
         setNewCredentials({
+          name: registeredName,
           admissionNumber: response.data.credentials.admissionNumber,
           defaultPassword: response.data.credentials.defaultPassword,
         });
       } else if (response.data && response.data.admissionNumber && response.data.defaultPassword) {
         setNewCredentials({
+          name: registeredName,
           admissionNumber: response.data.admissionNumber,
           defaultPassword: response.data.defaultPassword,
         });
       }
 
       setSuccessMsg(`Student registered successfully!`);
-      setShowModal(false); // ✅ Close entry form modal automatically
-      setShowSuccessModal(true); // ✅ Trigger custom credential popup
+      setShowModal(false); 
+      setShowSuccessModal(true); 
       fetchStudents();
       
       setForm({
@@ -200,7 +233,7 @@ const Students = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Student Management</h1>
-          <p className="text-gray-500 text-sm">{students.length} students registered</p>
+          <p className="text-gray-500 text-sm">Showing system portal registry slices</p>
         </div>
         <button
           onClick={() => { setShowModal(true); setSuccessMsg(''); setNewCredentials(null); }}
@@ -308,6 +341,41 @@ const Students = () => {
             </tbody>
           </table>
         </div>
+
+        {/* ✅ STYLIZED PAGINATION NAVIGATION INTERFACE FOOTER */}
+        {!loading && students.length > 0 && (
+          <div className="px-6 py-4 bg-gray-50/70 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+              Page <span className="text-gray-900 font-extrabold">{page}</span> of{' '}
+              <span className="text-gray-900 font-extrabold">{totalPages}</span>
+              {totalFilteredRecords > 0 && (
+                <span className="font-medium text-gray-400 lowercase tracking-normal ml-1.5">
+                  ({totalFilteredRecords} total matches)
+                </span>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition-all select-none"
+              >
+                <ChevronLeft size={14} /> Prev
+              </button>
+              
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+                className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 bg-white rounded-lg text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white transition-all select-none"
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Student Modal */}
@@ -328,9 +396,9 @@ const Students = () => {
                   <input
                     type="text"
                     value={form.surname}
-                    onChange={(e) => setForm({ ...form, surname: e.target.value })}
+                    onChange={(e) => setForm({ ...form, surname: formatToUpperCase(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
-                    placeholder="e.g. Victor"
+                    placeholder="e.g. VICTOR"
                   />
                 </div>
                 <div>
@@ -338,7 +406,7 @@ const Students = () => {
                   <input
                     type="text"
                     value={form.firstName}
-                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                    onChange={(e) => setForm({ ...form, firstName: formatToTitleCase(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
                     placeholder="e.g. Oluwayimika"
                   />
@@ -348,9 +416,9 @@ const Students = () => {
                   <input
                     type="text"
                     value={form.middleName}
-                    onChange={(e) => setForm({ ...form, middleName: e.target.value })}
+                    onChange={(e) => setForm({ ...form, middleName: formatToTitleCase(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
-                    placeholder="e.g. Optional"
+                    placeholder="e.g. Precious"
                   />
                 </div>
               </div>
@@ -432,7 +500,7 @@ const Students = () => {
         </div>
       )}
 
-      {/* ✅ SUCCESS & CREDENTIAL CONFIRMATION MODAL OVERLAY */}
+      {/* SUCCESS & CREDENTIAL CONFIRMATION MODAL OVERLAY */}
       {showSuccessModal && newCredentials && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-100 transition-all border border-gray-100">
@@ -444,26 +512,30 @@ const Students = () => {
                 Registration Complete
               </h3>
               <p className="text-sm text-gray-500 font-medium">
-                {successMsg}
+                Student has been fully configured inside the system portal.
               </p>
             </div>
 
             <div className="p-6 bg-gray-50/50 space-y-4">
               <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
                 <div>
+                  <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Registered Full Name</span>
+                  <span className="text-base font-extrabold text-gray-900 tracking-wide select-all">{newCredentials.name}</span>
+                </div>
+                <div className="border-t border-gray-100 pt-2.5">
                   <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Admission Number</span>
-                  <span className="text-base font-black text-gray-800 tracking-wide select-all">{newCredentials.admissionNumber}</span>
+                  <span className="text-sm font-black text-gray-700 tracking-wide select-all">{newCredentials.admissionNumber}</span>
                 </div>
                 <div className="border-t border-gray-100 pt-2.5">
                   <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Default Access Password</span>
-                  <span className="text-base font-black text-primary tracking-wide select-all">{newCredentials.defaultPassword}</span>
+                  <span className="text-sm font-black text-primary tracking-wide select-all">{newCredentials.defaultPassword}</span>
                 </div>
               </div>
               
               <div className="flex items-start gap-2.5 px-1">
                 <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-gray-500 font-medium leading-relaxed">
-                  Make sure to copy or write down these authentication credentials before confirming. Share them securely with the student.
+                  Make sure to copy these details before confirming. Share them securely with the student.
                 </p>
               </div>
             </div>
@@ -481,7 +553,7 @@ const Students = () => {
         </div>
       )}
 
-      {/* 🛠️ APP-STYLE DELETE CONFIRMATION OVERLAY MODAL */}
+      {/* APP-STYLE DELETE CONFIRMATION OVERLAY MODAL */}
       {showDeleteModal && studentToDelete && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-100 transition-all">
