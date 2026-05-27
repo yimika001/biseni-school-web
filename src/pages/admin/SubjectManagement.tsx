@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { BookOpen, Plus, Trash2, Save, Loader2, BookCheck, Layers, ClipboardList } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { BookOpen, Plus, Trash2, Save, Loader2, BookCheck, Layers, ClipboardList, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { toast, Toaster } from 'react-hot-toast';
@@ -25,11 +25,27 @@ const SubjectManagement = () => {
   const [allCurriculums, setAllCurriculums] = useState<ClassSummary[]>([]);
   const [fetchingSummary, setFetchingSummary] = useState(false);
 
-  // 🎯 STRICT STRUCTURAL RULE: Junior classes get General. Senior classes get ONLY Science and Arts.
+  // 🛡️ CUSTOM APP-STYLE MODAL CONFIRMATION STATE
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    subjectName: string;
+    index: number;
+    isDirectMatrixDelete: boolean;
+    matrixClass?: string;
+    matrixDept?: string;
+  }>({
+    isOpen: false,
+    subjectName: '',
+    index: -1,
+    isDirectMatrixDelete: false
+  });
+
+  // 🎯 SCROLL ANCHOR REF
+  const editorWorkspaceRef = useRef<HTMLDivElement>(null);
+
   const isJuniorClass = selectedClass.startsWith('JSS');
   const departmentsAvailable = isJuniorClass ? ['General'] : ['Science', 'Arts'];
 
-  // Dynamically switch state default when toggling between senior/junior levels
   useEffect(() => {
     if (isJuniorClass) {
       setSelectedDept('General');
@@ -38,7 +54,7 @@ const SubjectManagement = () => {
     }
   }, [selectedClass, isJuniorClass]);
 
-  // Fetch current working subjects for the workspace selection
+  // Fetch current working subjects
   const fetchCurrentSubjects = async (cls: string, dept: string) => {
     const activeToken = token || localStorage.getItem('bss_token'); 
     if (!activeToken || activeToken === 'null') return;
@@ -71,7 +87,7 @@ const SubjectManagement = () => {
     }
   };
 
-  // Pulls clean matrix data for all classes
+  // Pulls matrix data
   const fetchAllCurriculumsSummary = async () => {
     const activeToken = token || localStorage.getItem('bss_token');
     if (!activeToken || activeToken === 'null') return;
@@ -106,19 +122,18 @@ const SubjectManagement = () => {
               subjects: rawSubjects
             });
           } catch (e) {
-            console.error(`Skipping or empty stream config for ${cls}-${dept}`);
+            console.error(`Skipping config for ${cls}-${dept}`);
           }
         }
       }
       setAllCurriculums(summaryData);
     } catch (err) {
-      console.error("Error gathering dashboard summaries:", err);
+      console.error("Error gathering summaries:", err);
     } finally {
       setFetchingSummary(false);
     }
   };
 
-  // Monitor workspace adjustments safely without clearing data during active saves
   useEffect(() => {
     const activeToken = token || localStorage.getItem('bss_token');
     const balancedDept = selectedClass.startsWith('JSS') ? 'General' : (selectedDept === 'General' ? 'Science' : selectedDept);
@@ -128,7 +143,6 @@ const SubjectManagement = () => {
     }
   }, [selectedClass, selectedDept, token]);
 
-  // Initial load tracking hook
   useEffect(() => {
     const activeToken = token || localStorage.getItem('bss_token');
     if (activeToken && activeToken !== 'null') {
@@ -148,97 +162,146 @@ const SubjectManagement = () => {
     setNewSubject('');
   };
 
-  // 🛡️ CONFIRMATION DIALOG INTERCEPTOR FOR WORKSPACE EDITOR DELETES
-  const handleRemoveSubjectWithConfirmation = (subjectName: string, index: number) => {
-    const activeDeptLabel = selectedClass.startsWith('JSS') ? 'General' : selectedDept;
-    const confirmMessage = `Are you sure you want to delete "${subjectName.toUpperCase()}" for ${selectedClass} (${activeDeptLabel})? \n\nClick OK to confirm deletion. You must click 'Save Configuration' afterwards to persist this change to the database.`;
-    
-    if (window.confirm(confirmMessage)) {
-      setSubjects(prev => prev.filter((_, i) => i !== index));
-      toast.success(`Removed ${subjectName} locally from layout workspace.`);
-    }
+  // 🛑 TRIGGER MODAL FOR WORKSPACE DELETIONS
+  const triggerWorkspaceDeleteModal = (subjectName: string, index: number) => {
+    setDeleteModal({
+      isOpen: true,
+      subjectName,
+      index,
+      isDirectMatrixDelete: false
+    });
   };
 
-  // 🛡️ CONFIRMATION DIALOG INTERCEPTOR FOR DIRECT MATRIX CARD DELETES
-  const deleteSubjectDirectly = async (classLevel: string, department: string, subjectToDelete: string) => {
-    const confirmMessage = `Are you sure you want to delete "${subjectToDelete.toUpperCase()}" directly from ${classLevel} (${department})?\n\nThis will instantly update the live database.`;
-    
-    if (!window.confirm(confirmMessage)) return;
+  // 🛑 TRIGGER MODAL FOR DIRECT MATRIX CARD DELETIONS
+  const triggerMatrixDeleteModal = (classLevel: string, department: string, subjectName: string) => {
+    setDeleteModal({
+      isOpen: true,
+      subjectName,
+      index: -1,
+      isDirectMatrixDelete: true,
+      matrixClass: classLevel,
+      matrixDept: department
+    });
+  };
 
+  // ⚡ CONFIRMED ACTION EXECUTION HANDLER
+  const handleConfirmedDeletion = async () => {
+    const { isDirectMatrixDelete, subjectName, index, matrixClass, matrixDept } = deleteModal;
     const activeToken = token || localStorage.getItem('bss_token');
-    if (!activeToken || activeToken === 'null') return toast.error("Session expired.");
 
-    const targetedConfig = allCurriculums.find(c => c.classLevel === classLevel && c.department === department);
-    if (!targetedConfig) return;
+    if (isDirectMatrixDelete && matrixClass && matrixDept) {
+      // Execute Direct Live API Delete
+      if (!activeToken || activeToken === 'null') return toast.error("Session expired.");
+      const targetedConfig = allCurriculums.find(c => c.classLevel === matrixClass && c.department === matrixDept);
+      if (!targetedConfig) return;
 
-    const remainingSubjects = targetedConfig.subjects.filter(s => s !== subjectToDelete);
+      const remainingSubjects = targetedConfig.subjects.filter(s => s !== subjectName);
 
-    try {
-      await axios.post(
-        `${import.meta.env.VITE_API_URL}/admin/subjects`,
-        {
-          classLevel,
-          department,
-          subjects: remainingSubjects         
-        },
-        { headers: { Authorization: `Bearer ${activeToken}`, 'Content-Type': 'application/json' } }
-      );
+      try {
+        await axios.post(
+          `${import.meta.env.VITE_API_URL}/admin/subjects`,
+          { classLevel: matrixClass, department: matrixDept, subjects: remainingSubjects },
+          { headers: { Authorization: `Bearer ${activeToken}`, 'Content-Type': 'application/json' } }
+        );
 
-      toast.success(`Successfully deleted ${subjectToDelete} from database`);
-      
-      // If the admin happens to have this specific class open in the workspace editor, update it live too
-      if (selectedClass === classLevel && selectedDept === department) {
-        setSubjects(remainingSubjects);
+        toast.success(`Deleted ${subjectName} from database`);
+        if (selectedClass === matrixClass && selectedDept === matrixDept) {
+          setSubjects(remainingSubjects);
+        }
+        fetchAllCurriculumsSummary();
+      } catch (err) {
+        toast.error("Failed to update database.");
       }
-      
-      fetchAllCurriculumsSummary();
-    } catch (err) {
-      toast.error("Failed to execute live database change map update.");
+    } else {
+      // Execute Local Workspace Array Filter
+      setSubjects(prev => prev.filter((_, i) => i !== index));
+      toast.success(`Removed ${subjectName} locally from workspace list.`);
     }
+
+    // Close Modal Window
+    setDeleteModal(prev => ({ ...prev, isOpen: false }));
   };
 
   const saveConfiguration = async () => {
     const activeToken = token || localStorage.getItem('bss_token');
     if (!activeToken || activeToken === 'null') {
-      return toast.error("Authentication session missing. Please log in again.");
+      return toast.error("Authentication session missing.");
     }
 
-    const correctDepartment = selectedClass.startsWith('JSS') 
-      ? 'General' 
-      : (selectedDept === 'General' ? 'Science' : selectedDept);
+    const correctDepartment = selectedClass.startsWith('JSS') ? 'General' : selectedDept;
 
     setLoading(true);
     try {
       await axios.post(
         `${import.meta.env.VITE_API_URL}/admin/subjects`,
-        {
-          classLevel: selectedClass,
-          department: correctDepartment,
-          subjects: subjects         
-        },
+        { classLevel: selectedClass, department: correctDepartment, subjects: subjects },
         { headers: { Authorization: `Bearer ${activeToken}`, 'Content-Type': 'application/json' } }
       );
 
-      toast.success(`${selectedClass} (${correctDepartment}) CURRICULUM UPDATED`, {
-        duration: 3000,
+      toast.success(`${selectedClass} CURRICULUM UPDATED SUCCESSFULLY`, {
         position: 'top-center',
         style: { background: '#059669', color: '#fff', fontWeight: '800' }
       });
 
       await fetchAllCurriculumsSummary();
-      await fetchCurrentSubjects(selectedClass, correctDepartment);
     } catch (error: any) {
-      console.error("Save error:", error.response?.data || error.message);
-      toast.error(error.response?.data?.message || "Failed to update curriculum.");
+      toast.error("Failed to update curriculum.");
     } finally {
       setLoading(false);
     }
   };
 
+  // 🎯 SMOOTH SCROLL EXECUTION TRIGGER
+  const handleEditSelectionScroll = (classLevel: string, department: string) => {
+    setSelectedClass(classLevel);
+    setSelectedDept(department);
+    
+    setTimeout(() => {
+      editorWorkspaceRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }, 80);
+  };
+
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto pb-24">
+    <div className="p-4 md:p-8 max-w-6xl mx-auto pb-24 relative">
       <Toaster />
       
+      {/* 🛡️ APP-STYLE FLOATING MODAL WINDOW OVERLAY */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 transition-all animate-fade-in">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-gray-100 transform scale-100 transition-transform duration-200">
+            <div className="flex items-center gap-3 text-red-600 mb-4 bg-red-50 p-3 rounded-2xl">
+              <AlertTriangle size={24} className="shrink-0" />
+              <h3 className="font-black text-sm uppercase tracking-wider">Confirm Action Request</h3>
+            </div>
+            
+            <p className="text-gray-600 text-sm font-bold leading-relaxed mb-6">
+              Are you sure you want to delete <span className="text-gray-900 font-black italic">"{deleteModal.subjectName.toUpperCase()}"</span> for{' '}
+              <span className="text-primary font-black">
+                {deleteModal.isDirectMatrixDelete ? deleteModal.matrixClass : selectedClass}
+              </span>?
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setDeleteModal(prev => ({ ...prev, isOpen: false }))}
+                className="py-3.5 bg-gray-100 text-gray-500 font-black rounded-xl text-xs uppercase tracking-wider hover:bg-gray-200 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmedDeletion}
+                className="py-3.5 bg-red-600 text-white font-black rounded-xl text-xs uppercase tracking-wider hover:bg-red-700 shadow-lg shadow-red-600/20 transition-all"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
            <div className="p-2 bg-primary/10 rounded-xl">
@@ -251,7 +314,8 @@ const SubjectManagement = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+      {/* ANCHOR REF PLACED DIRECTLY ON THE WORKSPACE EDITOR ROW */}
+      <div ref={editorWorkspaceRef} className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12 scroll-mt-20">
         
         {/* PANEL: SELECTION */}
         <div className="space-y-6">
@@ -276,7 +340,7 @@ const SubjectManagement = () => {
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mt-8 mb-4 italic">Department Allocation</label>
             <div className="relative">
               <select 
-                value={selectedClass.startsWith('JSS') ? 'General' : (selectedDept === 'General' ? 'Science' : selectedDept)}
+                value={selectedClass.startsWith('JSS') ? 'General' : selectedDept}
                 onChange={(e) => setSelectedDept(e.target.value)}
                 disabled={isJuniorClass}
                 className="w-full p-4 bg-gray-50 border-none rounded-2xl text-sm font-bold text-gray-700 outline-none appearance-none disabled:text-gray-400 disabled:cursor-not-allowed uppercase"
@@ -287,9 +351,6 @@ const SubjectManagement = () => {
                 <Layers size={16} className="text-gray-400" />
               </div>
             </div>
-            {isJuniorClass && (
-              <p className="text-[10px] text-gray-400 mt-2 font-medium italic">* Junior classes are locked explicitly to General subjects.</p>
-            )}
           </div>
         </div>
 
@@ -309,7 +370,7 @@ const SubjectManagement = () => {
               value={newSubject}
               onChange={(e) => setNewSubject(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddSubject()}
-              placeholder="Enter subject name (e.g. Mathematics)..."
+              placeholder="Enter subject name..."
               className="flex-1 p-4 bg-gray-50 border-2 border-transparent rounded-2xl text-sm font-bold focus:border-primary/20 focus:bg-white transition-all outline-none"
             />
             <button 
@@ -327,10 +388,10 @@ const SubjectManagement = () => {
               </div>
             ) : subjects.length > 0 ? (
               subjects.map((sub, index) => (
-                <div key={index} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group hover:border-primary/20 hover:bg-white transition-all">
+                <div key={index} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:border-primary/20 hover:bg-white transition-all">
                   <span className="text-sm font-black text-gray-700 uppercase tracking-tight">{sub}</span>
                   <button 
-                    onClick={() => handleRemoveSubjectWithConfirmation(sub, index)}
+                    onClick={() => triggerWorkspaceDeleteModal(sub, index)}
                     className="text-gray-300 hover:text-red-500 p-2 rounded-lg transition-colors"
                   >
                     <Trash2 size={16} />
@@ -360,7 +421,7 @@ const SubjectManagement = () => {
         <div className="flex justify-between items-center mb-6 border-b border-gray-50 pb-4">
           <h2 className="font-black text-xl text-gray-900 uppercase flex items-center gap-2 tracking-tight">
             <ClipboardList size={22} className="text-primary" />
-            Live Curriculum Matrix Maps
+            Registered Subjects 
           </h2>
           {fetchingSummary && <Loader2 size={18} className="animate-spin text-primary" />}
         </div>
@@ -384,12 +445,11 @@ const SubjectManagement = () => {
                   <div className="flex flex-wrap gap-1.5 mt-4 max-h-40 overflow-y-auto">
                     {curriculum.subjects.length > 0 ? (
                       curriculum.subjects.map((s, sIdx) => (
-                        <div key={sIdx} className="flex items-center gap-1 text-[11px] font-bold bg-white text-gray-600 pl-2.5 pr-1.5 py-1 rounded-lg border border-gray-100 uppercase group/chip hover:border-red-200 hover:bg-red-50/20 transition-all">
+                        <div key={sIdx} className="flex items-center gap-1 text-[11px] font-bold bg-white text-gray-600 pl-2.5 pr-1.5 py-1 rounded-lg border border-gray-100 uppercase hover:border-red-200 hover:bg-red-50/20 transition-all">
                           <span>{s}</span>
                           <button
-                            onClick={() => deleteSubjectDirectly(curriculum.classLevel, curriculum.department, s)}
+                            onClick={() => triggerMatrixDeleteModal(curriculum.classLevel, curriculum.department, s)}
                             className="text-gray-300 hover:text-red-500 p-0.5 rounded transition-colors"
-                            title={`Delete ${s}`}
                           >
                             <Trash2 size={11} />
                           </button>
@@ -404,12 +464,8 @@ const SubjectManagement = () => {
                 <div className="mt-4 pt-3 border-t border-gray-100/70 flex justify-between items-center">
                   <span className="text-[10px] font-bold text-gray-400 uppercase">{curriculum.subjects.length} Subjects Registered</span>
                   <button 
-                    onClick={() => {
-                      setSelectedClass(curriculum.classLevel);
-                      setSelectedDept(curriculum.department);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                    className="text-[11px] font-extrabold text-primary hover:underline uppercase transition-all hover:scale-105"
+                    onClick={() => handleEditSelectionScroll(curriculum.classLevel, curriculum.department)}
+                    className="text-[11px] font-extrabold text-primary hover:underline uppercase transition-all"
                   >
                     Edit
                   </button>
@@ -423,7 +479,6 @@ const SubjectManagement = () => {
           </div>
         )}
       </div>
-
     </div>
   );
 };
