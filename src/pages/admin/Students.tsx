@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, UserPlus, X, Trash2, AlertCircle } from 'lucide-react';
+import { Search, UserPlus, X, Trash2, AlertCircle, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -29,7 +29,7 @@ interface NewStudent {
 }
 
 const classes = ['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3'];
-const departments = ['JSS', 'Sciences', 'Arts', 'Commercial', 'Vocational'];
+const departments = ['General', 'Science', 'Art'];
 
 const Students = () => {
   const { token: contextToken } = useAuth();
@@ -40,6 +40,7 @@ const Students = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false); // ✅ Added state for success modal
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [newCredentials, setNewCredentials] = useState<{ admissionNumber: string; defaultPassword: string } | null>(null);
@@ -55,7 +56,7 @@ const Students = () => {
     middleName: '',     
     gender: 'Male',
     class: 'JSS1',
-    department: 'JSS',
+    department: 'General', 
     parentContact: '',
     admissionYear: new Date().getFullYear().toString(),
   });
@@ -111,19 +112,22 @@ const Students = () => {
         { headers: { Authorization: `Bearer ${activeToken}` } }
       );
 
-      if (response.data && response.data.admissionNumber && response.data.defaultPassword) {
+      // ✅ Updated to cleanly target response.data.credentials matching backend payloads
+      if (response.data && response.data.credentials) {
+        setNewCredentials({
+          admissionNumber: response.data.credentials.admissionNumber,
+          defaultPassword: response.data.credentials.defaultPassword,
+        });
+      } else if (response.data && response.data.admissionNumber && response.data.defaultPassword) {
         setNewCredentials({
           admissionNumber: response.data.admissionNumber,
           defaultPassword: response.data.defaultPassword,
         });
-      } else if (response.data?.student) {
-        setNewCredentials({
-          admissionNumber: response.data.student.admissionNumber,
-          defaultPassword: response.data.student.defaultPassword,
-        });
       }
 
       setSuccessMsg(`Student registered successfully!`);
+      setShowModal(false); // ✅ Close entry form modal automatically
+      setShowSuccessModal(true); // ✅ Trigger custom credential popup
       fetchStudents();
       
       setForm({
@@ -132,7 +136,7 @@ const Students = () => {
         middleName: '',
         gender: 'Male',
         class: 'JSS1',
-        department: 'JSS',
+        department: 'General', 
         parentContact: '',
         admissionYear: new Date().getFullYear().toString(),
       });
@@ -144,13 +148,11 @@ const Students = () => {
     }
   };
 
-  // 🛠️ OPEN OVERLAY TRIGGER INSTEAD OF NATIVE POPUP
   const initiateDeleteRequest = (student: Student) => {
     setStudentToDelete(student);
     setShowDeleteModal(true);
   };
 
-  // 🛠️ CONFIRMED CASCADE DELETE METHOD
   const handleConfirmedDelete = async () => {
     if (!studentToDelete) return;
     try {
@@ -294,7 +296,7 @@ const Students = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button
-                        onClick={() => initiateDeleteRequest(student)} // 🛠️ ALTERED TO CALL CUSTOM MODAL SCRIPT
+                        onClick={() => initiateDeleteRequest(student)}
                         className="p-2 hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 transition-all"
                       >
                         <Trash2 size={16} />
@@ -320,19 +322,6 @@ const Students = () => {
             </div>
 
             <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              {successMsg && (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                  <p className="text-green-700 font-bold text-sm mb-2">{successMsg}</p>
-                  {newCredentials && (
-                    <div className="space-y-1">
-                      <p className="text-xs font-bold text-green-600">Admission Number: <span className="font-black">{newCredentials.admissionNumber}</span></p>
-                      <p className="text-xs font-bold text-green-600">Default Password: <span className="font-black">{newCredentials.defaultPassword}</span></p>
-                      <p className="text-[10px] text-green-500 mt-2">Share these credentials with the student.</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Surname *</label>
@@ -443,9 +432,58 @@ const Students = () => {
         </div>
       )}
 
-      {/* 🛠️ NEW: APP-STYLE DELETE CONFIRMATION OVERLAY MODAL */}
+      {/* ✅ SUCCESS & CREDENTIAL CONFIRMATION MODAL OVERLAY */}
+      {showSuccessModal && newCredentials && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-100 transition-all border border-gray-100">
+            <div className="p-6 text-center border-b border-gray-50">
+              <div className="mx-auto flex items-center justify-center h-14 w-14 rounded-full bg-green-100 text-green-600 mb-4 shadow-sm">
+                <CheckCircle size={28} />
+              </div>
+              <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight mb-1">
+                Registration Complete
+              </h3>
+              <p className="text-sm text-gray-500 font-medium">
+                {successMsg}
+              </p>
+            </div>
+
+            <div className="p-6 bg-gray-50/50 space-y-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+                <div>
+                  <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Admission Number</span>
+                  <span className="text-base font-black text-gray-800 tracking-wide select-all">{newCredentials.admissionNumber}</span>
+                </div>
+                <div className="border-t border-gray-100 pt-2.5">
+                  <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Default Access Password</span>
+                  <span className="text-base font-black text-primary tracking-wide select-all">{newCredentials.defaultPassword}</span>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-2.5 px-1">
+                <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                  Make sure to copy or write down these authentication credentials before confirming. Share them securely with the student.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-white border-t flex gap-3">
+              <button
+                type="button"
+                onClick={() => { setShowSuccessModal(false); setNewCredentials(null); }}
+                className="w-full py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary-dark transition-all text-center shadow-md shadow-primary/10"
+              >
+                Confirm Student
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🛠️ APP-STYLE DELETE CONFIRMATION OVERLAY MODAL */}
       {showDeleteModal && studentToDelete && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-100 transition-all">
             <div className="p-6 text-center">
               <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 text-red-600 mb-4">
