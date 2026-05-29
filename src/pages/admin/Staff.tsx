@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, UserPlus, Mail, Briefcase, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, UserPlus, Mail, Briefcase, Trash2, X, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -157,6 +157,16 @@ const Staff = () => {
                 <div className="space-y-3 border-t pt-4">
                   <div className="flex items-center gap-3 text-sm text-gray-600"><Briefcase size={16} className="text-gray-400 shrink-0" /> <span>{member.department} Department</span></div>
                   <div className="flex items-center gap-3 text-sm text-gray-600"><Mail size={16} className="text-gray-400 shrink-0" /> <span className="truncate">{member.email}</span></div>
+                  
+                  {/* Subjects Allocation Section */}
+                  <div className="pt-2">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><BookOpen size={12} /> Subjects</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {member.subjects.length > 0 ? member.subjects.map((subj, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-gray-100 text-gray-600 text-[10px] font-bold rounded-md">{subj}</span>
+                      )) : <span className="text-xs text-gray-400 italic">No subjects assigned</span>}
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-6">
                   <button onClick={() => setDeleteConfirmation({ id: member._id, name: member.name })} className="w-full flex items-center justify-center gap-2 text-xs font-bold py-2 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors text-gray-500"><Trash2 size={14} /> Remove</button>
@@ -205,6 +215,22 @@ const Staff = () => {
               <button onClick={handleCloseModal} className="flex-1 py-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50">Cancel</button>
               <button onClick={handleAddStaff} disabled={submitting} className="flex-1 py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary-dark">{submitting ? 'Adding...' : 'Add Staff'}</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
+            <h2 className="text-lg font-black text-gray-900 mb-2">Staff Added Successfully!</h2>
+            {newCredentials && (
+              <div className="bg-gray-50 p-4 rounded-lg my-4 text-left text-sm">
+                <p><strong>Name:</strong> {newCredentials.name}</p>
+                <p><strong>Email:</strong> {newCredentials.email}</p>
+                <p><strong>Default Password:</strong> {newCredentials.defaultPassword}</p>
+              </div>
+            )}
+            <button onClick={handleCloseModal} className="w-full py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary-dark">Done</button>
           </div>
         </div>
       )}
