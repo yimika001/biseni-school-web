@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, UserPlus, Mail, Briefcase, Trash2, X, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, UserPlus, Mail, Briefcase, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -37,10 +37,10 @@ const Staff = () => {
   const [showModal, setShowModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; name: string } | null>(null);
   const [newCredentials, setNewCredentials] = useState<{ name: string; email: string; defaultPassword: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
@@ -49,13 +49,11 @@ const Staff = () => {
     subjects: '', qualification: '', joinDate: '',
   });
 
-  // Get available departments based on role logic
   const getAvailableDepartments = () => {
     const roleLower = form.role.toLowerCase();
     return roleLower.includes('junior') ? JUNIOR_DEPARTMENTS : SECONDARY_DEPARTMENTS;
   };
 
-  // Ensure department resets if the role changes to a different category
   useEffect(() => {
     const available = getAvailableDepartments();
     if (!available.includes(form.department)) {
@@ -100,10 +98,11 @@ const Staff = () => {
     } catch (error) { alert('Failed to add staff member.'); } finally { setSubmitting(false); }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this staff member?')) return;
+  const confirmDelete = async () => {
+    if (!deleteConfirmation) return;
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/staff/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.delete(`${import.meta.env.VITE_API_URL}/staff/${deleteConfirmation.id}`, { headers: { Authorization: `Bearer ${token}` } });
+      setDeleteConfirmation(null);
       fetchStaff();
     } catch (error) { alert('Failed to delete staff member.'); }
   };
@@ -160,7 +159,7 @@ const Staff = () => {
                   <div className="flex items-center gap-3 text-sm text-gray-600"><Mail size={16} className="text-gray-400 shrink-0" /> <span className="truncate">{member.email}</span></div>
                 </div>
                 <div className="mt-6">
-                  <button onClick={() => handleDelete(member._id)} className="w-full flex items-center justify-center gap-2 text-xs font-bold py-2 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors text-gray-500"><Trash2 size={14} /> Remove</button>
+                  <button onClick={() => setDeleteConfirmation({ id: member._id, name: member.name })} className="w-full flex items-center justify-center gap-2 text-xs font-bold py-2 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors text-gray-500"><Trash2 size={14} /> Remove</button>
                 </div>
               </div>
             ))}
@@ -209,7 +208,21 @@ const Staff = () => {
           </div>
         </div>
       )}
-      {/* (Success Modal remains the same) */}
+
+      {deleteConfirmation && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
+            <h2 className="text-lg font-black text-gray-900 mb-2">Confirm Removal</h2>
+            <p className="text-sm text-gray-500 mb-6">
+              Are you sure you want to remove <span className="font-bold text-gray-900">{deleteConfirmation.name}</span> from the staff directory? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteConfirmation(null)} className="flex-1 py-2.5 rounded-xl font-bold border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
+              <button onClick={confirmDelete} className="flex-1 py-2.5 rounded-xl font-bold bg-red-600 text-white hover:bg-red-700">Yes, Remove</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
