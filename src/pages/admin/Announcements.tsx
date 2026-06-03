@@ -77,9 +77,12 @@ const Announcements = () => {
 
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Announcements</h1>
-        <button onClick={() => { setIsFormOpen(!isFormOpen); setEditId(null); }} className="bg-primary text-white px-4 py-2 rounded-lg">
-          {isFormOpen ? 'Close' : 'New Announcement'}
-        </button>
+<button 
+  onClick={() => { setIsFormOpen(!isFormOpen); setEditId(null); }} 
+  className="bg-primary text-white px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base rounded-lg"
+>
+  {isFormOpen ? 'Close' : 'New Announcement'}
+</button>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
