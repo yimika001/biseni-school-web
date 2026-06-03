@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, UserSquare2, 
-  FileSpreadsheet, Megaphone, CreditCard, 
+  FileSpreadsheet, Megaphone, 
   LogOut, GraduationCap, BookOpen, Image as ImageIcon 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -16,7 +16,6 @@ const AdminSidebar = () => {
     navigate('/portal');
   };
 
-  // Define links based on role
   const getLinks = () => {
     if (role === 'admin') {
       return [
@@ -37,7 +36,6 @@ const AdminSidebar = () => {
       return [
         { name: 'Student Home', path: '/portal/dashboard', icon: <LayoutDashboard size={20} /> },
         { name: 'Check Results', path: '/portal/results', icon: <FileSpreadsheet size={20} /> },
-        { name: 'My Fees', path: '/portal/fees', icon: <CreditCard size={20} /> },
       ];
     }
   };

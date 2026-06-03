@@ -1,8 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, UserSquare2, 
-  FileSpreadsheet, Megaphone, CreditCard, 
-  LogOut, BookOpen, Image as ImageIcon 
+  FileSpreadsheet, Megaphone, 
+  LogOut, GraduationCap, BookOpen, Image as ImageIcon 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -16,16 +16,18 @@ const AdminMobileNav = () => {
     navigate('/portal');
   };
 
-  const getLinks = () => {
+ const getLinks = () => {
     if (role === 'admin') {
       return [
         { name: 'Home', path: '/admin/dashboard', icon: <LayoutDashboard size={20} /> },
         { name: 'Students', path: '/admin/students', icon: <Users size={20} /> },
         { name: 'Staff', path: '/admin/staff', icon: <UserSquare2 size={20} /> },
+        { name: 'News', path: '/admin/announcements', icon: <Megaphone size={20} /> }, // Add this line
         { name: 'Subjects', path: '/admin/subjects', icon: <BookOpen size={20} /> },
-        { name: 'Gallery', path: '/admin/gallery', icon: <ImageIcon size={20} /> }, // Added
+        { name: 'Gallery', path: '/admin/gallery', icon: <ImageIcon size={20} /> },
         { name: 'Results', path: '/admin/results', icon: <FileSpreadsheet size={20} /> },
       ];
+    
     } else if (role === 'staff') {
       return [
         { name: 'Home', path: '/staff/dashboard', icon: <LayoutDashboard size={20} /> },
@@ -35,7 +37,7 @@ const AdminMobileNav = () => {
       return [
         { name: 'Home', path: '/portal/dashboard', icon: <LayoutDashboard size={20} /> },
         { name: 'Results', path: '/portal/results', icon: <FileSpreadsheet size={20} /> },
-        { name: 'Fees', path: '/portal/fees', icon: <CreditCard size={20} /> },
+        
       ];
     }
   };

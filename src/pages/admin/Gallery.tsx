@@ -72,7 +72,13 @@ const AdminGallery = () => {
                 className="w-full h-48 object-contain cursor-pointer hover:opacity-90 transition-opacity" 
                 onClick={() => setSelectedIndex(index)}
               />
-              <button onClick={() => setDeleteConfirm(img)} className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  setDeleteConfirm(img); 
+                }} 
+                className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10"
+              >
                 <Trash2 size={16} />
               </button>
             </div>
@@ -96,9 +102,9 @@ const AdminGallery = () => {
       {selectedIndex !== null && (
         <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4">
           <button className="absolute top-5 right-5 text-white p-2" onClick={() => setSelectedIndex(null)}><X size={32}/></button>
-          <button className="absolute left-5 text-white" onClick={() => navigateImage(-1)}><ChevronLeft size={48}/></button>
+          <button className="absolute left-5 text-white" onClick={(e) => { e.stopPropagation(); navigateImage(-1); }}><ChevronLeft size={48}/></button>
           <img src={images[selectedIndex].imageUrl} className="max-h-[90vh] max-w-[90vw] object-contain" />
-          <button className="absolute right-5 text-white" onClick={() => navigateImage(1)}><ChevronRight size={48}/></button>
+          <button className="absolute right-5 text-white" onClick={(e) => { e.stopPropagation(); navigateImage(1); }}><ChevronRight size={48}/></button>
         </div>
       )}
     </div>

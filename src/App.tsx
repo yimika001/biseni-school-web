@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import MainLayout from './components/layout/MainLayout';
-import FeesStatus from './pages/portal/Fees';
 
 // Public Pages
 import Home from './pages/public/home'; 
@@ -20,8 +19,8 @@ import AdminMobileNav from './components/layout/AdminMobileNav';
 import Dashboard from './pages/admin/Dashboard';
 import Students from './pages/admin/Students';
 import Staff from './pages/admin/Staff';
-import AdminResults from './pages/admin/result'; // Admin: approve/reject/term settings/history
-import StaffResults from './pages/portal/StaffResults'; // Staff: upload only
+import AdminResults from './pages/admin/result';
+import StaffResults from './pages/portal/StaffResults';
 import Announcements from './pages/admin/Announcements';
 import StaffDashboard from './pages/portal/StaffDashboard';
 import StudentDashboard from './pages/portal/StudentDashboard';
@@ -35,7 +34,6 @@ const App = () => {
       <Router basename="/biseni_secondary_school">
         <ScrollToTop />
         <Routes>
-          {/* 1. PUBLIC ROUTES */}
           <Route element={<MainLayout />}>
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
@@ -47,7 +45,6 @@ const App = () => {
             <Route path="/portal" element={<Login />} />
           </Route>
 
-          {/* 2. ADMIN PORTAL ROUTES */}
           <Route path="/admin/*" element={
             <div className="flex bg-gray-50 min-h-screen">
               <AdminSidebar />
@@ -59,14 +56,13 @@ const App = () => {
                   <Route path="staff" element={<Staff />} />
                   <Route path="results" element={<AdminResults />} />
                   <Route path="announcements" element={<Announcements />} />
-                 <Route path="subjects" element={<SubjectManagement />} />
-                 <Route path="gallery" element={<AdminGallery />} />
+                  <Route path="subjects" element={<SubjectManagement />} />
+                  <Route path="gallery" element={<AdminGallery />} />
                 </Routes>
               </div>
             </div>
           } />
 
-          {/* 3. STAFF PORTAL ROUTES */}
           <Route path="/staff/*" element={
             <div className="flex bg-gray-50 min-h-screen">
               <AdminSidebar />
@@ -80,7 +76,6 @@ const App = () => {
             </div>
           } />
 
-          {/* 4. STUDENT PORTAL ROUTES */}
           <Route path="/portal/*" element={
             <div className="flex bg-gray-50 min-h-screen">
               <AdminSidebar />
@@ -89,7 +84,6 @@ const App = () => {
                 <Routes>
                   <Route path="dashboard" element={<StudentDashboard />} />
                   <Route path="results" element={<StudentResults />} />
-                  <Route path="fees" element={<FeesStatus />} />
                 </Routes>
               </div>
             </div>
