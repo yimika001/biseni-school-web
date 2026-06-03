@@ -27,6 +27,7 @@ import StaffDashboard from './pages/portal/StaffDashboard';
 import StudentDashboard from './pages/portal/StudentDashboard';
 import StudentResults from './pages/portal/Results';
 import SubjectManagement from './pages/admin/SubjectManagement';
+import AdminGallery from './pages/admin/Gallery';
 
 const App = () => {
   return (
@@ -59,6 +60,7 @@ const App = () => {
                   <Route path="results" element={<AdminResults />} />
                   <Route path="announcements" element={<Announcements />} />
                  <Route path="subjects" element={<SubjectManagement />} />
+                 <Route path="gallery" element={<AdminGallery />} />
                 </Routes>
               </div>
             </div>

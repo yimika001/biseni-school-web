@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, UserSquare2, 
   FileSpreadsheet, Megaphone, CreditCard, 
-  LogOut, GraduationCap, BookOpen 
+  LogOut, GraduationCap, BookOpen, Image as ImageIcon 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -23,9 +23,10 @@ const AdminSidebar = () => {
         { name: 'Dashboard', path: '/admin/dashboard', icon: <LayoutDashboard size={20} /> },
         { name: 'Students', path: '/admin/students', icon: <Users size={20} /> },
         { name: 'Staff', path: '/admin/staff', icon: <UserSquare2 size={20} /> },
-        { name: 'Subjects', path: '/admin/subjects', icon: <BookOpen size={20} /> }, // Added this line
+        { name: 'Subjects', path: '/admin/subjects', icon: <BookOpen size={20} /> },
         { name: 'Results', path: '/admin/results', icon: <FileSpreadsheet size={20} /> },
         { name: 'News', path: '/admin/announcements', icon: <Megaphone size={20} /> },
+        { name: 'Gallery', path: '/admin/gallery', icon: <ImageIcon size={20} /> },
       ];
     } else if (role === 'staff') {
       return [
@@ -45,15 +46,13 @@ const AdminSidebar = () => {
 
   return (
     <div className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 h-screen sticky top-0">
-      {/* Logo Section */}
       <div className="p-6 border-b border-gray-50 flex items-center gap-3">
         <div className="bg-primary p-2 rounded-lg text-white">
-          < GraduationCap size={24} />
+          <GraduationCap size={24} />
         </div>
         <span className="font-black text-primary tracking-tighter text-xl">BISENI</span>
       </div>
 
-      {/* Navigation Links */}
       <nav className="flex-1 p-4 space-y-2">
         <p className="text-[10px] font-bold text-gray-400 uppercase ml-2 mb-4 tracking-widest">
           {role} Menu
@@ -76,7 +75,6 @@ const AdminSidebar = () => {
         ))}
       </nav>
 
-      {/* User & Logout Section */}
       <div className="p-4 border-t border-gray-50">
         <div className="bg-gray-50 rounded-2xl p-4">
           <p className="text-xs font-bold text-gray-900 truncate">{user?.name || 'User Account'}</p>
