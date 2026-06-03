@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Edit2, Search, Loader2 } from 'lucide-react';
+import { Trash2, Edit2, Search, Loader2, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -14,12 +14,13 @@ interface Announcement {
 const Announcements = () => {
   const { token } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true); // Added loading state
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: '', content: '', category: 'General', isPublished: false });
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const fetchAnnouncements = async () => {
     try {
@@ -28,16 +29,14 @@ const Announcements = () => {
         headers: { Authorization: `Bearer ${token}` } 
       });
       setAnnouncements(res.data.announcements || []);
-    } catch (err) {
-      console.error("Failed to fetch", err);
-    } finally {
-      setLoading(false);
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setLoading(false); 
     }
   };
 
-  useEffect(() => { 
-    if (token) fetchAnnouncements(); 
-  }, [token]); // Depend on token to ensure it runs after auth is ready
+  useEffect(() => { if (token) fetchAnnouncements(); }, [token]);
 
   const filteredAnnouncements = announcements.filter(item => 
     item.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -54,6 +53,8 @@ const Announcements = () => {
       setForm({ title: '', content: '', category: 'General', isPublished: false });
       setEditId(null);
       setIsFormOpen(false);
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2000);
       fetchAnnouncements();
     } catch (err) { alert('Action failed'); }
   };
@@ -73,6 +74,29 @@ const Announcements = () => {
 
   return (
     <div className="p-6">
+      {/* Success Modal */}
+      {showSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 p-4">
+          <div className="bg-white p-8 rounded-2xl shadow-xl flex flex-col items-center">
+            <CheckCircle className="text-green-500 w-16 h-16 mb-4" />
+            <p className="font-bold text-lg">Action Successful!</p>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 className="font-bold text-lg mb-4">Delete this announcement?</h3>
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteModal({ isOpen: false, id: null })} className="flex-1 py-2 rounded-lg bg-gray-100">Cancel</button>
+              <button onClick={handleDelete} className="flex-1 py-2 rounded-lg bg-red-600 text-white">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Announcements</h1>
         <button 
