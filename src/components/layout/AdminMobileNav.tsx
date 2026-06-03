@@ -45,14 +45,22 @@ const AdminMobileNav = () => {
 
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t p-2 z-50 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
         {getLinks().map((link) => (
-          <NavLink key={link.name} to={link.path} className="flex flex-col items-center text-gray-400">
+          <NavLink 
+            key={link.name} 
+            to={link.path} 
+            className={({ isActive }) => 
+              `flex flex-col items-center pt-1 border-t-2 transition-colors ${
+                isActive ? 'text-primary border-primary' : 'text-gray-400 border-transparent'
+              }`
+            }
+          >
             {link.icon}
-            <span className="text-[8px] font-black uppercase">{link.name}</span>
+            <span className="text-[8px] font-black uppercase mt-0.5">{link.name}</span>
           </NavLink>
         ))}
-        <button onClick={() => setShowLogoutModal(true)} className="flex flex-col items-center text-red-500">
+        <button onClick={() => setShowLogoutModal(true)} className="flex flex-col items-center text-red-500 pt-1 border-t-2 border-transparent">
           <LogOut size={20} />
-          <span className="text-[8px] font-black uppercase">Exit</span>
+          <span className="text-[8px] font-black uppercase mt-0.5">logout</span>
         </button>
       </div>
     </>
