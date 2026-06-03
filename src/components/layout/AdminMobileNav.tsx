@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, Users, UserSquare2, 
-  FileSpreadsheet, Megaphone, 
-  LogOut, BookOpen, Image as ImageIcon 
-} from 'lucide-react';
+import { LayoutDashboard, Users, UserSquare2, FileSpreadsheet, Megaphone, LogOut, BookOpen, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const AdminMobileNav = () => {
@@ -29,24 +25,12 @@ const AdminMobileNav = () => {
         { name: 'Gallery', path: '/admin/gallery', icon: <ImageIcon size={20} /> },
         { name: 'Results', path: '/admin/results', icon: <FileSpreadsheet size={20} /> },
       ];
-    } else if (role === 'staff') {
-      return [
-        { name: 'Home', path: '/staff/dashboard', icon: <LayoutDashboard size={20} /> },
-        { name: 'Scores', path: '/staff/results', icon: <FileSpreadsheet size={20} /> },
-      ];
-    } else {
-      return [
-        { name: 'Home', path: '/portal/dashboard', icon: <LayoutDashboard size={20} /> },
-        { name: 'Results', path: '/portal/results', icon: <FileSpreadsheet size={20} /> },
-      ];
     }
+    return [{ name: 'Home', path: '/portal/dashboard', icon: <LayoutDashboard size={20} /> }];
   };
-
-  const links = getLinks();
 
   return (
     <>
-      {/* Logout Confirmation Modal */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl">
@@ -59,38 +43,19 @@ const AdminMobileNav = () => {
         </div>
       )}
 
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-1 py-2 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
-        <div className="flex justify-between items-center">
-          {links.map((link) => (
-            <NavLink
-              key={link.name}
-              to={link.path}
-              className={({ isActive }) =>
-                `flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all ${
-                  isActive ? 'text-primary bg-primary/10' : 'text-gray-400'
-                }`
-              }
-            >
-              {link.icon}
-              <span className="text-[8px] font-black uppercase tracking-tighter text-center leading-none">
-                {link.name}
-              </span>
-            </NavLink>
-          ))}
-
-          <button
-            onClick={() => setShowLogoutModal(true)}
-            className="flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all text-red-500 hover:bg-red-50"
-          >
-            <LogOut size={20} />
-            <span className="text-[8px] font-black uppercase tracking-tighter text-center leading-none">
-              Exit
-            </span>
-          </button>
-        </div>
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t p-2 z-50 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+        {getLinks().map((link) => (
+          <NavLink key={link.name} to={link.path} className="flex flex-col items-center text-gray-400">
+            {link.icon}
+            <span className="text-[8px] font-black uppercase">{link.name}</span>
+          </NavLink>
+        ))}
+        <button onClick={() => setShowLogoutModal(true)} className="flex flex-col items-center text-red-500">
+          <LogOut size={20} />
+          <span className="text-[8px] font-black uppercase">Exit</span>
+        </button>
       </div>
     </>
   );
 };
-
 export default AdminMobileNav;
