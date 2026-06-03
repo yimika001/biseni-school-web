@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, X, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Search } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -14,6 +14,7 @@ interface Announcement {
 const Announcements = () => {
   const { token } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: '', content: '', category: 'General', isPublished: false });
@@ -25,6 +26,12 @@ const Announcements = () => {
   };
 
   useEffect(() => { fetchAnnouncements(); }, []);
+
+  // Filter logic
+  const filteredAnnouncements = announcements.filter(item => 
+    item.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    item.content.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleSubmit = async () => {
     try {
@@ -68,7 +75,7 @@ const Announcements = () => {
         </div>
       )}
 
-      <div className="flex justify-between mb-8">
+      <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Announcements</h1>
         <button onClick={() => { setIsFormOpen(!isFormOpen); setEditId(null); }} className="bg-primary text-white px-4 py-2 rounded-lg">
           {isFormOpen ? 'Close' : 'New Announcement'}
@@ -93,7 +100,18 @@ const Announcements = () => {
         )}
 
         <div className={`space-y-4 ${isFormOpen ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-          {announcements.map((item) => (
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+            <input 
+              className="w-full pl-10 pr-4 py-2 border rounded-xl" 
+              placeholder="Search announcements..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+
+          {filteredAnnouncements.map((item) => (
             <div key={item._id} className="bg-white border rounded-xl p-5 flex justify-between items-center">
               <div>
                 <h3 className="font-bold">{item.title}</h3>
