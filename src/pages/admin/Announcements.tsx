@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, X, Search } from 'lucide-react';
+import { Trash2, Edit2, Search, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -14,6 +14,7 @@ interface Announcement {
 const Announcements = () => {
   const { token } = useAuth();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [loading, setLoading] = useState(true); // Added loading state
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -21,13 +22,23 @@ const Announcements = () => {
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string | null }>({ isOpen: false, id: null });
 
   const fetchAnnouncements = async () => {
-    const res = await axios.get(`${import.meta.env.VITE_API_URL}/announcements`, { headers: { Authorization: `Bearer ${token}` } });
-    setAnnouncements(res.data.announcements);
+    try {
+      setLoading(true);
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/announcements`, { 
+        headers: { Authorization: `Bearer ${token}` } 
+      });
+      setAnnouncements(res.data.announcements || []);
+    } catch (err) {
+      console.error("Failed to fetch", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchAnnouncements(); }, []);
+  useEffect(() => { 
+    if (token) fetchAnnouncements(); 
+  }, [token]); // Depend on token to ensure it runs after auth is ready
 
-  // Filter logic
   const filteredAnnouncements = announcements.filter(item => 
     item.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
     item.content.toLowerCase().includes(searchTerm.toLowerCase())
@@ -62,33 +73,20 @@ const Announcements = () => {
 
   return (
     <div className="p-6">
-      {/* Delete Modal */}
-      {deleteModal.isOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-            <h3 className="font-bold text-lg mb-4 text-red-600">Delete Announcement?</h3>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteModal({ isOpen: false, id: null })} className="flex-1 py-2 rounded-lg bg-gray-100">Cancel</button>
-              <button onClick={handleDelete} className="flex-1 py-2 rounded-lg bg-red-600 text-white">Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Announcements</h1>
-<button 
-  onClick={() => { setIsFormOpen(!isFormOpen); setEditId(null); }} 
-  className="bg-primary text-white px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base rounded-lg"
->
-  {isFormOpen ? 'Close' : 'New Announcement'}
-</button>
+        <button 
+          onClick={() => { setIsFormOpen(!isFormOpen); setEditId(null); }} 
+          className="bg-primary text-white px-3 py-1.5 text-sm md:px-4 md:py-2 md:text-base rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+        >
+          {isFormOpen ? 'Close' : 'New Post'}
+        </button>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
         {isFormOpen && (
           <div className="lg:col-span-1 bg-white border rounded-xl p-6 h-fit space-y-4">
-            <h2 className="font-bold">{editId ? 'Edit Announcement' : 'Post New Announcement'}</h2>
+            <h2 className="font-bold">{editId ? 'Edit Announcement' : 'Post New'}</h2>
             <input className="w-full p-2 border rounded" placeholder="Title" value={form.title} onChange={e => setForm({...form, title: e.target.value})} />
             <select className="w-full p-2 border rounded" value={form.category} onChange={e => setForm({...form, category: e.target.value as any})}>
               <option>General</option><option>Academic</option><option>Holiday</option><option>Event</option>
@@ -103,32 +101,35 @@ const Announcements = () => {
         )}
 
         <div className={`space-y-4 ${isFormOpen ? 'lg:col-span-2' : 'lg:col-span-3'}`}>
-          {/* Search Bar */}
           <div className="relative">
             <Search className="absolute left-3 top-3 text-gray-400" size={20} />
             <input 
               className="w-full pl-10 pr-4 py-2 border rounded-xl" 
-              placeholder="Search announcements..." 
+              placeholder="Search..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
 
-          {filteredAnnouncements.map((item) => (
-            <div key={item._id} className="bg-white border rounded-xl p-5 flex justify-between items-center">
-              <div>
-                <h3 className="font-bold">{item.title}</h3>
-                <p className="text-sm text-gray-500">{item.content}</p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.isPublished ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                  {item.isPublished ? 'Published' : 'Draft'}
-                </span>
+          {loading ? (
+            <div className="flex justify-center py-10"><Loader2 className="animate-spin text-primary" /></div>
+          ) : (
+            filteredAnnouncements.map((item) => (
+              <div key={item._id} className="bg-white border rounded-xl p-5 flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold">{item.title}</h3>
+                  <p className="text-sm text-gray-500">{item.content}</p>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.isPublished ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {item.isPublished ? 'Published' : 'Draft'}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => startEdit(item)} className="text-blue-600"><Edit2 size={16} /></button>
+                  <button onClick={() => setDeleteModal({ isOpen: true, id: item._id })} className="text-red-600"><Trash2 size={16} /></button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => startEdit(item)} className="text-blue-600"><Edit2 size={16} /></button>
-                <button onClick={() => setDeleteModal({ isOpen: true, id: item._id })} className="text-red-600"><Trash2 size={16} /></button>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>
