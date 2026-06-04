@@ -29,9 +29,9 @@ interface AcademicRecord {
 
 interface StudentProfile {
   name?: string; 
-  surname: string;     // Aligned directly with student.ts schema
-  firstName: string;   // Aligned directly with student.ts schema
-  middleName?: string; // Aligned directly with student.ts schema
+  surname: string;
+  firstName: string;
+  middleName?: string;
   admissionNumber: string;
   class: string;
   isActive: boolean;
@@ -54,7 +54,6 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
           headers: { Authorization: `Bearer ${adminToken}` }
         };
 
-        // Fetch student profile details and academic history in parallel
         const [profileRes, historyRes] = await Promise.all([
           axios.get(`${import.meta.env.VITE_API_URL}/students/${studentId}`, config),
           axios.get(`${import.meta.env.VITE_API_URL}/students/${studentId}/history`, config).catch(() => ({ data: { records: [] } }))
@@ -71,7 +70,7 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
 
       } catch (err: any) {
         console.error('Error fetching archival data:', err);
-        setError(err.response?.data?.message || "Failed to load this student's academic timeline. Verify backend controller paths.");
+        setError(err.response?.data?.message || "Failed to load academic timeline.");
       } finally {
         setLoading(false);
       }
@@ -98,12 +97,11 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
           <AlertCircle size={28} />
         </div>
         <h3 className="text-base font-black text-slate-800 uppercase tracking-wide">Archival Fetch Failed</h3>
-        <p className="text-xs text-slate-500 leading-relaxed font-medium">{error || 'Could not discover profile meta-data wrappers.'}</p>
+        <p className="text-xs text-slate-500 leading-relaxed font-medium">{error || 'Could not discover profile meta-data.'}</p>
       </div>
     );
   }
 
-  // Beautiful name derivation explicitly respecting your backend Schema structure
   const middleInitial = profile.middleName ? ` ${profile.middleName.charAt(0)}.` : '';
   const displayName = profile.surname && profile.firstName
     ? `${profile.surname.toUpperCase()}, ${profile.firstName}${middleInitial}`
@@ -125,7 +123,7 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
             </span>
           </div>
           <p className="text-xs font-bold text-slate-500 mt-0.5">
-            Admission ID: <span className="font-mono text-slate-700 font-black">{profile.admissionNumber || 'Unassigned'}</span> · Current Class Placement: <span className="text-slate-700 font-black">{profile.class || 'N/A'}</span>
+            Admission ID: <span className="font-mono text-slate-700 font-black">{profile.admissionNumber || 'Unassigned'}</span> · Current Class: <span className="text-slate-700 font-black">{profile.class || 'N/A'}</span>
           </p>
         </div>
         <div className="bg-indigo-50 border border-indigo-100 px-4 py-2.5 rounded-xl text-center sm:text-right min-w-[140px]">
@@ -138,7 +136,6 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
         <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400 max-w-md mx-auto shadow-sm">
           <BookOpen className="mx-auto text-slate-300 mb-3" size={32} />
           <p className="text-sm font-bold uppercase tracking-wider text-slate-600">No Term Archives Found</p>
-          <p className="text-xs text-slate-400 mt-1">This profile exists, but no historical summaries or performance parameters have been published yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
@@ -173,22 +170,16 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
           <div className="lg:col-span-3 space-y-4">
             {selectedRecord && (
               <>
-                {/* Meta Highlights Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center gap-3 shadow-sm">
-                    <div className="p-2.5 bg-amber-50 text-amber-600 rounded-lg">
-                      <Award size={20} />
-                    </div>
+                    <div className="p-2.5 bg-amber-50 text-amber-600 rounded-lg"><Award size={20} /></div>
                     <div>
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide block">Performance Average</span>
                       <p className="text-base font-black text-slate-800">{selectedRecord.averageScore ? `${selectedRecord.averageScore}%` : 'N/A'}</p>
                     </div>
                   </div>
-
                   <div className="bg-white border border-slate-200 p-4 rounded-xl flex items-center gap-3 shadow-sm">
-                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg">
-                      <FileText size={20} />
-                    </div>
+                    <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg"><FileText size={20} /></div>
                     <div>
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-wide block">Audited Subjects</span>
                       <p className="text-base font-black text-slate-800">{selectedRecord.results?.length || 0} Registered</p>
@@ -196,16 +187,15 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
                   </div>
                 </div>
 
-                {/* Main Results Table */}
                 <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500 uppercase tracking-wider">
                           <th className="p-4">Subject</th>
-                          <th className="p-4 text-center">C.A. (40)</th>
-                          <th className="p-4 text-center">Exam (60)</th>
-                          <th className="p-4 text-center">Total (100)</th>
+                          <th className="p-4 text-center">C.A.</th>
+                          <th className="p-4 text-center">Exam</th>
+                          <th className="p-4 text-center">Total</th>
                           <th className="p-4 text-center">Grade</th>
                           <th className="p-4 hidden sm:table-cell">Remarks</th>
                         </tr>
@@ -218,28 +208,20 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
                             <td className="p-4 text-center font-mono">{res.examScore}</td>
                             <td className="p-4 text-center font-mono font-bold text-slate-900">{res.totalScore}</td>
                             <td className="p-4 text-center">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${
-                                res.grade?.startsWith('A') || res.grade?.startsWith('B')
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                                  : res.grade?.startsWith('C') || res.grade?.startsWith('P')
-                                  ? 'bg-amber-50 text-amber-700 border-amber-100'
-                                  : 'bg-red-50 text-red-700 border-red-100'
-                              }`}>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black border ${res.grade?.startsWith('A') || res.grade?.startsWith('B') ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
                                 {res.grade || 'N/A'}
                               </span>
                             </td>
-                            <td className="p-4 hidden sm:table-cell text-slate-500 text-[11px] italic font-medium">{res.remarks || 'No remarks logged'}</td>
+                            <td className="p-4 hidden sm:table-cell text-slate-500 text-[11px] italic font-medium">{res.remarks || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 </div>
-
-                {/* Instructor Feedback Footer */}
                 {selectedRecord.principalRemarks && (
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs font-medium">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Administrative Endorsement Summary</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Administrative Endorsement</span>
                     <p className="text-slate-600 italic">"{selectedRecord.principalRemarks}"</p>
                   </div>
                 )}
