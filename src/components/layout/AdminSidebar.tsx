@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, UserSquare2, 
@@ -9,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 const AdminSidebar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const role = user?.role;
 
   const handleLogout = () => {
@@ -43,49 +45,63 @@ const AdminSidebar = () => {
   const links = getLinks();
 
   return (
-    <div className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 h-screen sticky top-0">
-      <div className="p-6 border-b border-gray-50 flex items-center gap-3">
-        <div className="bg-primary p-2 rounded-lg text-white">
-          <GraduationCap size={24} />
+    <>
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl">
+            <h3 className="font-bold text-lg mb-4">Are you sure you want to logout?</h3>
+            <div className="flex gap-3">
+              <button onClick={() => setShowLogoutModal(false)} className="flex-1 py-2 bg-gray-100 rounded-lg">Cancel</button>
+              <button onClick={handleLogout} className="flex-1 py-2 bg-red-600 text-white rounded-lg">Logout</button>
+            </div>
+          </div>
         </div>
-        <span className="font-black text-primary tracking-tighter text-xl">BISENI</span>
-      </div>
+      )}
 
-      <nav className="flex-1 p-4 space-y-2">
-        <p className="text-[10px] font-bold text-gray-400 uppercase ml-2 mb-4 tracking-widest">
-          {role} Menu
-        </p>
-        {links.map((link) => (
-          <NavLink
-            key={link.name}
-            to={link.path}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${
-                isActive 
-                ? 'bg-primary text-white shadow-lg shadow-primary/20' 
-                : 'text-gray-500 hover:bg-gray-50'
-              }`
-            }
-          >
-            {link.icon}
-            <span className="text-sm">{link.name}</span>
-          </NavLink>
-        ))}
-      </nav>
+      <div className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 h-screen sticky top-0">
+        <div className="p-6 border-b border-gray-50 flex items-center gap-3">
+          <div className="bg-primary p-2 rounded-lg text-white">
+            <GraduationCap size={24} />
+          </div>
+          <span className="font-black text-primary tracking-tighter text-xl">BISENI</span>
+        </div>
 
-      <div className="p-4 border-t border-gray-50">
-        <div className="bg-gray-50 rounded-2xl p-4">
-          <p className="text-xs font-bold text-gray-900 truncate">{user?.name || 'User Account'}</p>
-          <p className="text-[10px] text-gray-500 uppercase font-bold mb-3">{role}</p>
-          <button 
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors"
-          >
-            <LogOut size={16} /> Logout
-          </button>
+        <nav className="flex-1 p-4 space-y-2">
+          <p className="text-[10px] font-bold text-gray-400 uppercase ml-2 mb-4 tracking-widest">
+            {role} Menu
+          </p>
+          {links.map((link) => (
+            <NavLink
+              key={link.name}
+              to={link.path}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${
+                  isActive 
+                  ? 'bg-primary text-white shadow-lg shadow-primary/20' 
+                  : 'text-gray-500 hover:bg-gray-50'
+                }`
+              }
+            >
+              {link.icon}
+              <span className="text-sm">{link.name}</span>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="p-4 border-t border-gray-50">
+          <div className="bg-gray-50 rounded-2xl p-4">
+            <p className="text-xs font-bold text-gray-900 truncate">{user?.name || 'User Account'}</p>
+            <p className="text-[10px] text-gray-500 uppercase font-bold mb-3">{role}</p>
+            <button 
+              onClick={() => setShowLogoutModal(true)}
+              className="w-full flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors"
+            >
+              <LogOut size={16} /> Logout
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
