@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Edit2, Search, Loader2, CheckCircle, LogOut } from 'lucide-react';
+import { Trash2, Edit2, Search, Loader2, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -127,17 +127,12 @@ const Announcements = () => {
 
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Announcements</h1>
-        <div className="flex gap-4">
-          <button 
-            onClick={() => { setIsFormOpen(!isFormOpen); setEditId(null); }} 
-            className="bg-primary text-white px-3 py-1.5 text-sm md:px-4 md:py-2 md:text-base rounded-lg shadow-sm hover:opacity-90 transition-opacity"
-          >
-            {isFormOpen ? 'Close' : 'New Post'}
-          </button>
-          <button onClick={() => setShowLogoutModal(true)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg">
-            <LogOut size={20} />
-          </button>
-        </div>
+        <button 
+          onClick={() => { setIsFormOpen(!isFormOpen); setEditId(null); }} 
+          className="bg-primary text-white px-3 py-1.5 text-sm md:px-4 md:py-2 md:text-base rounded-lg shadow-sm hover:opacity-90 transition-opacity"
+        >
+          {isFormOpen ? 'Close' : 'New Post'}
+        </button>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
