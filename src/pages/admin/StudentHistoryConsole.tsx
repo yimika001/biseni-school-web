@@ -1,48 +1,36 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Calendar, Award, FileText, BookOpen, AlertCircle, Check } from 'lucide-react';
+import { Loader2, Check, AlertCircle, Calendar, Award, FileText } from 'lucide-react';
 import axios from 'axios';
 
 interface StudentHistoryConsoleProps {
   studentId: string;
   adminToken: string;
+  highlightQuery?: string;
 }
 
-interface AcademicRecord {
-  term: string;
-  session: string;
-  class: string;
-  attendance?: { present: number; absent: number; };
-  results: Array<{
-    subject: string;
-    caScore: number;
-    examScore: number;
-    totalScore: number;
-    grade: string;
-    remarks: string;
-  }>;
-  averageScore?: number;
-  principalRemarks?: string;
-}
+// Reusable Highlight Component for consistent UI
+const HighlightText = ({ text, query }: { text: string; query: string }) => {
+  if (!query || query.length < 2) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${query})`, 'gi'));
+  return (
+    <>
+      {parts.map((part, i) => 
+        part.toLowerCase() === query.toLowerCase() 
+          ? <span key={i} className="bg-yellow-300 font-bold text-black px-0.5 rounded">{part}</span> 
+          : part
+      )}
+    </>
+  );
+};
 
-interface StudentProfile {
-  name?: string;
-  surname: string;
-  firstName: string;
-  middleName?: string;
-  admissionNumber: string;
-  class: string;
-  isActive: boolean;
-}
-
-const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleProps) => {
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [records, setRecords] = useState<AcademicRecord[]>([]);
+const StudentHistoryConsole = ({ studentId, adminToken, highlightQuery = '' }: StudentHistoryConsoleProps) => {
+  const [profile, setProfile] = useState<any | null>(null);
+  const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeRecordIndex, setActiveRecordIndex] = useState<number>(0);
   const [toast, setToast] = useState<{ message: string } | null>(null);
 
-  // Helper to trigger the 30-second toast
   const triggerToast = (message: string) => {
     setToast({ message });
     setTimeout(() => setToast(null), 30000);
@@ -59,10 +47,9 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
         ]);
 
         setProfile(profileRes.data?.student || profileRes.data?.data || profileRes.data);
-        const historyRecords = historyRes.data?.records || historyRes.data?.history || (Array.isArray(historyRes.data) ? historyRes.data : []);
-        setRecords(historyRecords);
+        setRecords(historyRes.data?.records || historyRes.data?.history || []);
       } catch (err: any) {
-        setError(err.response?.data?.message || "Failed to load academic timeline.");
+        setError("Failed to load academic timeline.");
       } finally {
         setLoading(false);
       }
@@ -70,94 +57,92 @@ const StudentHistoryConsole = ({ studentId, adminToken }: StudentHistoryConsoleP
     if (studentId && adminToken) fetchStudentHistory();
   }, [studentId, adminToken]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 min-h-[400px] space-y-3">
-        <Loader2 className="animate-spin text-indigo-600" size={32} />
-        <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Retrieving Academic Archive...</p>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center p-12 min-h-[300px] space-y-3">
+      <Loader2 className="animate-spin text-indigo-600" size={32} />
+      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Loading Academic Records...</p>
+    </div>
+  );
 
-  if (error || !profile) {
-    return (
-      <div className="p-8 max-w-2xl mx-auto text-center space-y-4">
-        <div className="inline-flex p-3 bg-red-50 text-red-600 rounded-xl border border-red-100"><AlertCircle size={28} /></div>
-        <h3 className="text-base font-black text-slate-800 uppercase tracking-wide">Archival Fetch Failed</h3>
-      </div>
-    );
-  }
+  if (error || !profile) return (
+    <div className="p-8 text-center text-red-600 bg-red-50 rounded-2xl border border-red-100">
+      <AlertCircle size={28} className="mx-auto mb-2" />
+      <p className="font-bold">Error loading student profile.</p>
+    </div>
+  );
 
-  // Consistent Full Name Display: Surname, Firstname Middlename
   const displayName = `${profile.surname?.toUpperCase() || ''}, ${profile.firstName || ''} ${profile.middleName || ''}`.trim();
   const selectedRecord = records[activeRecordIndex];
 
   return (
-    <div className="p-6 md:p-8 space-y-6 relative">
-      {/* Toast Notification Container */}
+    <div className="p-6 md:p-8 space-y-6 animate-in fade-in duration-500">
+      {/* Toast */}
       {toast && (
-        <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
-          <Check size={20} />
-          <span className="font-bold text-sm">{toast.message}</span>
+        <div className="fixed top-6 right-6 z-[60] bg-emerald-600 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3">
+          <Check size={20} /> <span className="font-bold text-sm">{toast.message}</span>
         </div>
       )}
 
-      {/* Mini Profile Banner */}
-      <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Profile Header */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm flex items-center justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-black text-slate-800">{displayName}</h2>
-            <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider border ${profile.isActive !== false ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-              {profile.isActive !== false ? 'Active' : 'Alumni'}
-            </span>
-          </div>
-          <p className="text-xs font-bold text-slate-500 mt-0.5">
-            Admission ID: <span className="font-mono text-slate-700 font-black">{profile.admissionNumber || 'Unassigned'}</span> · Current Class: <span className="text-slate-700 font-black">{profile.class || 'N/A'}</span>
+          <h2 className="text-2xl font-black text-slate-900">
+            <HighlightText text={displayName} query={highlightQuery} />
+          </h2>
+          <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wider">
+            Admission ID: <span className="font-mono text-indigo-600">{profile.admissionNumber}</span>
           </p>
+        </div>
+        <div className="h-10 w-10 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-600">
+          <Award size={20} />
         </div>
       </div>
 
-      {records.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-          <div className="lg:col-span-1 space-y-2 max-h-[400px] overflow-y-auto pr-1">
+      {/* History Records Layout */}
+      {records.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="space-y-2 lg:max-h-[500px] lg:overflow-y-auto">
             {records.map((rec, idx) => (
-              <button
-                key={idx}
-                onClick={() => setActiveRecordIndex(idx)}
-                className={`w-full text-left p-3.5 rounded-xl border transition-all ${idx === activeRecordIndex ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-200'}`}
+              <button 
+                key={idx} 
+                onClick={() => setActiveRecordIndex(idx)} 
+                className={`w-full text-left p-4 rounded-2xl border transition-all ${idx === activeRecordIndex ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200 hover:border-indigo-200'}`}
               >
-                <p className="text-xs font-black uppercase">{rec.term} Term</p>
-                <p className="text-[10px] font-bold opacity-80">{rec.session} · {rec.class}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest">{rec.term} Term</p>
+                <p className="text-xs font-bold opacity-90">{rec.session}</p>
               </button>
             ))}
           </div>
 
-          <div className="lg:col-span-3 space-y-4">
-            <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-               <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 border-b text-[10px] font-black text-slate-500 uppercase">
-                      <th className="p-4">Subject</th>
-                      <th className="p-4 text-center">C.A.</th>
-                      <th className="p-4 text-center">Exam</th>
-                      <th className="p-4 text-center">Total</th>
-                      <th className="p-4 text-center">Grade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedRecord.results?.map((res, i) => (
-                      <tr key={i} className="border-b last:border-0">
-                        <td className="p-4 font-black">{res.subject}</td>
-                        <td className="p-4 text-center font-mono">{res.caScore}</td>
-                        <td className="p-4 text-center font-mono">{res.examScore}</td>
-                        <td className="p-4 text-center font-bold">{res.totalScore}</td>
-                        <td className="p-4 text-center font-black text-emerald-600">{res.grade}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-               </table>
+          <div className="lg:col-span-3 bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center gap-2">
+              <Calendar size={18} className="text-slate-400" />
+              <h3 className="font-bold text-slate-700">Academic Performance · {selectedRecord.term} Term</h3>
             </div>
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <th className="p-4">Subject</th>
+                  <th className="p-4 text-center">Total</th>
+                  <th className="p-4 text-center">Grade</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {selectedRecord.results?.map((res: any, i: number) => (
+                  <tr key={i} className="hover:bg-slate-50 transition-colors">
+                    <td className="p-4 font-bold text-slate-700">{res.subject}</td>
+                    <td className="p-4 text-center font-mono font-bold text-indigo-600">{res.totalScore}</td>
+                    <td className="p-4 text-center font-black text-emerald-600">{res.grade}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        </div>
+      ) : (
+        <div className="p-12 text-center bg-white rounded-3xl border border-dashed border-slate-300 text-slate-400">
+          <FileText className="mx-auto mb-2" />
+          <p className="font-bold">No academic history available.</p>
         </div>
       )}
     </div>
