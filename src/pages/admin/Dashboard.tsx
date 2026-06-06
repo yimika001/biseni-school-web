@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Lock, Unlock, Loader2, Search, Check, Users, UserCheck, AlertTriangle, BookOpen, Save, X, CreditCard } from 'lucide-react';
+import { Loader2, Check, Users, UserCheck, AlertTriangle, BookOpen, Save, X } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import StudentHistoryConsole from './StudentHistoryConsole';
@@ -7,9 +7,7 @@ import StudentHistoryConsole from './StudentHistoryConsole';
 const HighlightText = ({ text, query }: { text: string; query: string }) => {
   if (!query || query.length < 2) return <>{text}</>;
   const parts = text.split(new RegExp(`(${query})`, 'gi'));
-  return (
-    <>{parts.map((part, i) => part.toLowerCase() === query.toLowerCase() ? <span key={i} className="bg-yellow-300 font-bold text-black px-1 rounded">{part}</span> : part)}</>
-  );
+  return <>{parts.map((part, i) => part.toLowerCase() === query.toLowerCase() ? <span key={i} className="bg-yellow-300 font-bold text-black px-1 rounded">{part}</span> : part)}</>;
 };
 
 const Dashboard = () => {
@@ -17,13 +15,10 @@ const Dashboard = () => {
   const [termState, setTermState] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  
   const [showSessionModal, setShowSessionModal] = useState(false);
   const [showLockModal, setShowLockModal] = useState(false);
-  
   const [editTerm, setEditTerm] = useState({ term: '', session: '' });
   const { token } = useAuth();
-  
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -52,9 +47,9 @@ const Dashboard = () => {
 
   const toggleTermLock = async () => {
     await axios.patch(`${import.meta.env.VITE_API_URL}/active-term/toggle`, {}, { headers: { Authorization: `Bearer ${token}` } });
-    setSuccessMsg(`Term successfully ${termState.isLocked ? 'unlocked' : 'locked'}.`);
+    setSuccessMsg(`Term status updated.`);
     setShowLockModal(false);
-    fetchData();
+    await fetchData();
     setTimeout(() => setSuccessMsg(null), 3000);
   };
 
@@ -64,7 +59,7 @@ const Dashboard = () => {
     const delayDebounce = setTimeout(async () => {
       if (searchQuery.trim().length < 2) return setSearchResults([]);
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/students?search=${searchQuery.trim()}`, { headers: { Authorization: `Bearer ${token}` } });
-      setSearchResults(res.data.students || res.data || []);
+      setSearchResults(res.data.students || []);
     }, 350);
     return () => clearTimeout(delayDebounce);
   }, [searchQuery, token]);
@@ -74,7 +69,7 @@ const Dashboard = () => {
   return (
     <div className="p-4 md:p-10 max-w-7xl mx-auto space-y-8 bg-slate-50 min-h-screen">
       {successMsg && <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3"><Check size={20} /> <p className="font-bold text-sm">{successMsg}</p></div>}
-
+      
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <h1 className="text-3xl font-black text-slate-900">Dashboard</h1>
         <button onClick={() => setShowSessionModal(true)} className="bg-white p-4 rounded-3xl border shadow-sm hover:border-indigo-300 transition-all text-left">
@@ -104,7 +99,7 @@ const Dashboard = () => {
         <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name..." className="w-full p-4 bg-slate-50 rounded-2xl outline-none" />
         <div className="mt-4 space-y-2">
           {searchResults.map(s => {
-            const fullName = `${s.firstName || ''} ${s.middleName || ''} ${s.lastName || ''}`.trim();
+            const fullName = `${s.surname || ''} ${s.firstName || ''} ${s.middleName || ''}`.trim();
             return (
               <button key={s._id} onClick={() => setSelectedStudentId(s._id)} className="w-full p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl flex justify-between items-center text-left">
                 <p className="font-bold text-slate-700"><HighlightText text={fullName} query={searchQuery} /></p>
@@ -118,20 +113,13 @@ const Dashboard = () => {
       {showSessionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="font-black text-lg">Manage Session</h3>
-              <button onClick={() => setShowSessionModal(false)}><X size={20}/></button>
-            </div>
+            <h3 className="font-black text-lg">Manage Session</h3>
             <select className="w-full p-3 bg-slate-100 rounded-xl font-bold" value={editTerm.term} onChange={e => setEditTerm({...editTerm, term: e.target.value})}>
-              <option value="First">First Term</option>
-              <option value="Second">Second Term</option>
-              <option value="Third">Third Term</option>
+              <option value="First">First Term</option><option value="Second">Second Term</option><option value="Third">Third Term</option>
             </select>
             <input className="w-full p-3 bg-slate-100 rounded-xl font-bold" value={editTerm.session} onChange={e => setEditTerm({...editTerm, session: e.target.value})} placeholder="Session (e.g. 2025/2026)" />
             <button onClick={handleSaveTerm} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold">Save Changes</button>
-            <button onClick={() => {setShowSessionModal(false); setShowLockModal(true)}} className="w-full py-3 bg-slate-100 rounded-xl font-bold">
-              {termState?.isLocked ? 'Unlock Term' : 'Lock Term'}
-            </button>
+            <button onClick={() => {setShowSessionModal(false); setShowLockModal(true)}} className="w-full py-3 bg-slate-100 rounded-xl font-bold">{termState?.isLocked ? 'Unlock Term' : 'Lock Term'}</button>
           </div>
         </div>
       )}
@@ -139,12 +127,8 @@ const Dashboard = () => {
       {showLockModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full">
-            <h3 className="font-black text-lg">{termState?.isLocked ? 'Unlock Term?' : 'Lock Term?'}</h3>
-            <p className="text-sm text-slate-500 my-4">
-              {termState?.isLocked 
-                ? 'Are you sure you want to unlock this term? Staff members will be able to upload and modify results again.' 
-                : 'Are you sure you want to lock this term? Staff members will no longer be able to upload or modify results until the term is unlocked.'}
-            </p>
+            <h3 className="font-black text-lg">Confirm Action</h3>
+            <p className="text-sm my-4">{termState?.isLocked ? 'Unlock term for uploads?' : 'Lock term to restrict uploads?'}</p>
             <div className="flex gap-2">
               <button onClick={() => setShowLockModal(false)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold">Cancel</button>
               <button onClick={toggleTermLock} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">Confirm</button>
