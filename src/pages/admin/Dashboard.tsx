@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Lock, Unlock, Loader2, Search, Check, Users, UserCheck, AlertTriangle, BookOpen, Save, CreditCard, ShieldCheck } from 'lucide-react';
+import { Lock, Unlock, Loader2, Search, Check, Users, UserCheck, AlertTriangle, BookOpen, Save, X, CreditCard } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import StudentHistoryConsole from './StudentHistoryConsole';
@@ -17,8 +17,10 @@ const Dashboard = () => {
   const [termState, setTermState] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [showSessionForm, setShowSessionForm] = useState(false);
+  
+  const [showSessionModal, setShowSessionModal] = useState(false);
+  const [showLockModal, setShowLockModal] = useState(false);
+  
   const [editTerm, setEditTerm] = useState({ term: '', session: '' });
   const { token } = useAuth();
   
@@ -41,7 +43,8 @@ const Dashboard = () => {
   const handleSaveTerm = async () => {
     try {
       await axios.patch(`${import.meta.env.VITE_API_URL}/active-term`, editTerm, { headers: { Authorization: `Bearer ${token}` } });
-      setSuccessMsg("Session updated successfully");
+      setSuccessMsg("Academic term and session updated successfully.");
+      setShowSessionModal(false);
       fetchData();
       setTimeout(() => setSuccessMsg(null), 3000);
     } catch (e) { alert("Failed to update session"); }
@@ -50,7 +53,7 @@ const Dashboard = () => {
   const toggleTermLock = async () => {
     await axios.patch(`${import.meta.env.VITE_API_URL}/active-term/toggle`, {}, { headers: { Authorization: `Bearer ${token}` } });
     setSuccessMsg(`Term successfully ${termState.isLocked ? 'unlocked' : 'locked'}.`);
-    setShowModal(false);
+    setShowLockModal(false);
     fetchData();
     setTimeout(() => setSuccessMsg(null), 3000);
   };
@@ -72,38 +75,20 @@ const Dashboard = () => {
     <div className="p-4 md:p-10 max-w-7xl mx-auto space-y-8 bg-slate-50 min-h-screen">
       {successMsg && <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3"><Check size={20} /> <p className="font-bold text-sm">{successMsg}</p></div>}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <h1 className="text-3xl font-black text-slate-900">Dashboard</h1>
-        </div>
-        <div className="bg-white p-4 rounded-3xl border shadow-sm">
-          <button onClick={() => setShowSessionForm(!showSessionForm)} className="w-full text-left">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Session</p>
-            <p className="text-sm font-black text-slate-800">{termState?.term} Term · {termState?.session}</p>
-          </button>
-          
-          {showSessionForm && (
-            <div className="mt-4 pt-4 border-t space-y-3">
-              <div className="flex gap-2">
-                <input className="flex-1 p-2 bg-slate-100 rounded-lg text-sm font-bold" value={editTerm.term} onChange={e => setEditTerm({...editTerm, term: e.target.value})} placeholder="Term" />
-                <input className="flex-1 p-2 bg-slate-100 rounded-lg text-sm font-bold" value={editTerm.session} onChange={e => setEditTerm({...editTerm, session: e.target.value})} placeholder="Session" />
-                <button onClick={handleSaveTerm} className="bg-indigo-600 px-4 rounded-lg text-white font-bold text-sm">Save</button>
-              </div>
-              <button onClick={() => setShowModal(true)} className={`w-full py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 ${termState?.isLocked ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                {termState?.isLocked ? <><Unlock size={16}/> Unlock Term</> : <><Lock size={16}/> Lock Term</>}
-              </button>
-            </div>
-          )}
-        </div>
+      <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+        <h1 className="text-3xl font-black text-slate-900">Dashboard</h1>
+        <button onClick={() => setShowSessionModal(true)} className="bg-white p-4 rounded-3xl border shadow-sm hover:border-indigo-300 transition-all text-left">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Session</p>
+          <p className="text-sm font-black text-slate-800">{termState?.term} Term · {termState?.session}</p>
+        </button>
       </div>
 
       {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { label: 'Students', value: stats.totalStudents, icon: Users, color: 'text-blue-600' },
-            { label: 'Staff', value: stats.totalStaff, icon: UserCheck, color: 'text-indigo-600' },
+            { label: 'Total Students', value: stats.totalStudents, icon: Users, color: 'text-blue-600' },
+            { label: 'Total Staff', value: stats.totalStaff, icon: UserCheck, color: 'text-indigo-600' },
             { label: 'Pending Fees', value: stats.feesOverview.pendingCount, icon: AlertTriangle, color: 'text-amber-600' },
-            { label: 'Fees Paid', value: stats.feesOverview.paid, icon: CreditCard, color: 'text-emerald-600' },
             { label: 'Pending Results', value: stats.pendingResults, icon: BookOpen, color: 'text-rose-600' },
           ].map((s, i) => (
             <div key={i} className="bg-white p-6 rounded-3xl border shadow-sm">
@@ -116,29 +101,53 @@ const Dashboard = () => {
       )}
 
       <div className="bg-white p-6 rounded-3xl border shadow-sm">
-        <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name, ID, or class..." className="w-full p-4 bg-slate-50 rounded-2xl outline-none" />
+        <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name..." className="w-full p-4 bg-slate-50 rounded-2xl outline-none" />
         <div className="mt-4 space-y-2">
-          {searchResults.map(s => (
-            <button key={s._id} onClick={() => setSelectedStudentId(s._id)} className="w-full p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl flex justify-between items-center text-left">
-              <div>
-                <p className="font-bold text-slate-700">
-                  <HighlightText text={`${s.lastName?.toUpperCase() || 'UNKNOWN'}, ${s.firstName || ''} ${s.middleName || ''}`} query={searchQuery} />
-                </p>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{s.class} · ID: {s.admissionNumber}</p>
-              </div>
-            </button>
-          ))}
+          {searchResults.map(s => {
+            const fullName = `${s.firstName || ''} ${s.middleName || ''} ${s.lastName || ''}`.trim();
+            return (
+              <button key={s._id} onClick={() => setSelectedStudentId(s._id)} className="w-full p-4 bg-slate-50 hover:bg-indigo-50 rounded-2xl flex justify-between items-center text-left">
+                <p className="font-bold text-slate-700"><HighlightText text={fullName} query={searchQuery} /></p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">{s.class}</p>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {showModal && (
+      {showSessionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-black text-lg">Manage Session</h3>
+              <button onClick={() => setShowSessionModal(false)}><X size={20}/></button>
+            </div>
+            <select className="w-full p-3 bg-slate-100 rounded-xl font-bold" value={editTerm.term} onChange={e => setEditTerm({...editTerm, term: e.target.value})}>
+              <option value="First">First Term</option>
+              <option value="Second">Second Term</option>
+              <option value="Third">Third Term</option>
+            </select>
+            <input className="w-full p-3 bg-slate-100 rounded-xl font-bold" value={editTerm.session} onChange={e => setEditTerm({...editTerm, session: e.target.value})} placeholder="Session (e.g. 2025/2026)" />
+            <button onClick={handleSaveTerm} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold">Save Changes</button>
+            <button onClick={() => {setShowSessionModal(false); setShowLockModal(true)}} className="w-full py-3 bg-slate-100 rounded-xl font-bold">
+              {termState?.isLocked ? 'Unlock Term' : 'Lock Term'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showLockModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full">
-            <h3 className="text-lg font-black">{termState?.isLocked ? 'Unlock Term?' : 'Lock Term?'}</h3>
-            <p className="text-sm text-slate-500 my-4">This will {termState?.isLocked ? 'allow' : 'restrict'} staff from uploading results.</p>
+            <h3 className="font-black text-lg">{termState?.isLocked ? 'Unlock Term?' : 'Lock Term?'}</h3>
+            <p className="text-sm text-slate-500 my-4">
+              {termState?.isLocked 
+                ? 'Are you sure you want to unlock this term? Staff members will be able to upload and modify results again.' 
+                : 'Are you sure you want to lock this term? Staff members will no longer be able to upload or modify results until the term is unlocked.'}
+            </p>
             <div className="flex gap-2">
-              <button onClick={() => setShowModal(false)} className="flex-1 py-2 bg-slate-100 rounded-xl font-bold">Cancel</button>
-              <button onClick={toggleTermLock} className="flex-1 py-2 bg-indigo-600 text-white rounded-xl font-bold">Confirm</button>
+              <button onClick={() => setShowLockModal(false)} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold">Cancel</button>
+              <button onClick={toggleTermLock} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">Confirm</button>
             </div>
           </div>
         </div>
