@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Settings, Lock, Unlock, Loader2, Search, Check, FileText } from 'lucide-react';
+import { Settings, Lock, Unlock, Loader2, Search, Check, Users, UserCheck, DollarSign, BookOpen } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import StudentHistoryConsole from './StudentHistoryConsole';
@@ -23,9 +23,8 @@ interface StudentSearchResult {
   _id: string;
   firstName: string;
   lastName: string;
+  middleName?: string;
   admissionNumber: string;
-  class: string;
-  isActive: boolean;
 }
 
 const Dashboard = () => {
@@ -54,28 +53,38 @@ const Dashboard = () => {
     setTimeout(() => setSuccessMsg(null), 3000);
   };
 
+  // Highlight helper
+  const HighlightText = ({ text, query }: { text: string, query: string }) => {
+    if (!query) return <>{text}</>;
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return (
+      <>
+        {parts.map((part, i) => 
+          part.toLowerCase() === query.toLowerCase() 
+            ? <span key={i} className="bg-yellow-300 font-bold text-black">{part}</span> 
+            : part
+        )}
+      </>
+    );
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
-      if (currentRole === 'admin') {
-        const [statsRes, termRes] = await Promise.all([
-          axios.get(`${import.meta.env.VITE_API_URL}/admin/stats`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${import.meta.env.VITE_API_URL}/active-term`, { headers: { Authorization: `Bearer ${token}` } })
-        ]);
-        setStats(statsRes.data);
-        setTermState(termRes.data);
-      } else {
-        const termRes = await axios.get(`${import.meta.env.VITE_API_URL}/active-term`, { headers: { Authorization: `Bearer ${token}` } });
-        setTermState(termRes.data);
-      }
+      const [statsRes, termRes] = await Promise.all([
+        axios.get(`${import.meta.env.VITE_API_URL}/admin/stats`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${import.meta.env.VITE_API_URL}/active-term`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      setStats(statsRes.data);
+      setTermState(termRes.data);
     } catch (error) {
-      console.error('Failed to fetch data context:', error);
+      console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { if (token) fetchData(); }, [token, user?.role]);
+  useEffect(() => { if (token) fetchData(); }, [token]);
 
   useEffect(() => {
     const delayDebounce = setTimeout(async () => {
@@ -89,10 +98,7 @@ const Dashboard = () => {
           headers: { Authorization: `Bearer ${token}` },
           params: { search: searchQuery.trim() }
         });
-        const data = response.data.students || response.data;
-        setSearchResults(Array.isArray(data) ? data : []);
-      } catch (err) {
-        setSearchResults([]);
+        setSearchResults(Array.isArray(response.data) ? response.data : response.data.students || []);
       } finally {
         setIsSearching(false);
       }
@@ -104,107 +110,82 @@ const Dashboard = () => {
     if (!termState) return;
     try {
       setLockToggleLoading(true);
-      const response = await axios.put(`${import.meta.env.VITE_API_URL}/active-term/toggle-lock`, {}, { headers: { Authorization: `Bearer ${token}` } });
-      setTermState(response.data.activeTerm || response.data);
+      const res = await axios.put(`${import.meta.env.VITE_API_URL}/active-term/toggle-lock`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      setTermState(res.data.activeTerm || res.data);
       setShowLockModal(false);
-      triggerSuccess(`System has been ${response.data.activeTerm?.isLocked ? 'locked' : 'unlocked'} successfully.`);
-    } catch (error) {
-      alert("Failed to modify system locking configuration.");
-    } finally {
-      setLockToggleLoading(false);
-    }
-  };
-
-  const handleUpdateTerm = async () => {
-    if (!termState) return;
-    try {
-      setIsUpdating(true);
-      const response = await axios.put(`${import.meta.env.VITE_API_URL}/active-term`, 
-        { term: newTerm, session: newSession }, 
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setTermState(response.data.activeTerm || response.data);
-      setShowConfigModal(false);
-      triggerSuccess("Academic session context updated successfully!");
-    } catch (error) {
-      alert("Failed to update term/session.");
-    } finally {
-      setIsUpdating(false);
-    }
+      triggerSuccess("Status updated successfully.");
+    } finally { setLockToggleLoading(false); }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-gray-50"><Loader2 className="animate-spin text-indigo-600" size={36} /></div>;
 
   return (
-    <div className="p-6 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto space-y-8">
-      {/* Success Notification */}
-      {successMsg && (
-        <div className="fixed top-6 right-6 z-[100] bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
-          <Check size={20} /> <p className="font-bold text-sm">{successMsg}</p>
-        </div>
-      )}
+    <div className="p-6 md:p-8 pb-24 max-w-7xl mx-auto space-y-8">
+      {successMsg && <div className="fixed top-6 right-6 z-[100] bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3"><Check size={20} /> <p className="font-bold text-sm">{successMsg}</p></div>}
 
-      {/* Modals */}
-      {showLockModal && (
-        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border border-gray-100">
-            <h3 className="text-lg font-black text-gray-900 mb-2">Confirm Action</h3>
-            <p className="text-sm text-gray-600 mb-6">Are you sure you want to {termState?.isLocked ? "UNLOCK" : "LOCK"} result uploads?</p>
-            <div className="flex gap-3"><button onClick={() => setShowLockModal(false)} className="flex-1 py-2.5 bg-gray-100 font-bold text-gray-700 rounded-xl">Cancel</button><button onClick={handleToggleTermLock} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/20">Confirm</button></div>
-          </div>
+      {/* Header & Term Context */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="text-gray-500 text-sm">Welcome back, {user?.name || 'Administrator'}</p>
         </div>
-      )}
-
-      {showConfigModal && (
-        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl border border-gray-100">
-            <h3 className="text-lg font-black text-gray-900 mb-4">Update Session Context</h3>
-            <div className="space-y-4 mb-6">
-              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Term</label><select value={newTerm} onChange={(e) => setNewTerm(e.target.value)} className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold"><option value="First">First</option><option value="Second">Second</option><option value="Third">Third</option></select></div>
-              <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Session</label><input type="text" value={newSession} onChange={(e) => setNewSession(e.target.value)} className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-semibold" /></div>
-            </div>
-            <div className="flex gap-3"><button onClick={() => setShowConfigModal(false)} className="flex-1 py-2.5 bg-gray-100 font-bold text-gray-700 rounded-xl">Cancel</button><button onClick={handleUpdateTerm} className="flex-1 py-2.5 bg-indigo-600 text-white font-bold rounded-xl">{isUpdating ? <Loader2 className="animate-spin mx-auto" size={18} /> : "Save Changes"}</button></div>
-          </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-        <div><h1 className="text-2xl font-bold text-gray-900">Administrative Overview</h1><p className="text-gray-500 text-sm mt-1">Manage portal activities and search student records.</p></div>
         {termState && (
-          <div className="flex items-center justify-between gap-4 bg-white border border-gray-200 shadow-sm p-4 rounded-xl min-w-[320px]">
+          <div className="bg-white border p-4 rounded-xl flex items-center justify-between min-w-[300px]">
             <div>
-              <span className="text-[10px] uppercase font-black tracking-wider text-gray-400">Current Session Context</span>
-              <div className="flex items-center gap-2 mt-0.5"><h4 className="text-xs font-bold text-gray-900 uppercase">{termState.term} Term · {termState.session}</h4><button onClick={() => { setNewTerm(termState.term); setNewSession(termState.session); setShowConfigModal(true); }} className="text-indigo-600"><Settings size={14} /></button></div>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Active Session</p>
+              <p className="text-sm font-bold text-gray-900">{termState.term} Term · {termState.session}</p>
             </div>
-            <button onClick={() => setShowLockModal(true)} className={`flex items-center gap-1.5 text-xs font-black px-4 py-2.5 rounded-lg ${termState.isLocked ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>{lockToggleLoading ? <Loader2 size={14} className="animate-spin" /> : termState.isLocked ? <Unlock size={14} /> : <Lock size={14} />}</button>
+            <button onClick={() => setShowLockModal(true)} className={`p-3 rounded-lg ${termState.isLocked ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {termState.isLocked ? <Unlock size={18} /> : <Lock size={18} />}
+            </button>
           </div>
         )}
       </div>
 
+      {/* Stats Grid */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Students', value: stats.totalStudents, icon: Users, color: 'text-blue-600' },
+            { label: 'Total Staff', value: stats.totalStaff, icon: UserCheck, color: 'text-indigo-600' },
+            { label: 'Pending Fees', value: `₦${stats.feesOverview.pending.toLocaleString()}`, icon: DollarSign, color: 'text-amber-600' },
+            { label: 'Pending Results', value: stats.pendingResults, icon: BookOpen, color: 'text-rose-600' },
+          ].map((stat, i) => (
+            <div key={i} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`p-2 bg-gray-50 rounded-lg ${stat.color}`}><stat.icon size={18} /></div>
+                <p className="text-xs font-bold text-gray-400 uppercase">{stat.label}</p>
+              </div>
+              <p className="text-2xl font-black text-gray-900">{stat.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Search Section */}
-      <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-        <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2"><Search size={18} /> Student Record Search</h3>
-        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name or admission number..." className="w-full p-3 border border-gray-200 rounded-lg text-sm" />
-        {isSearching ? <p className="mt-4 text-xs text-gray-400">Searching...</p> : (
+      <div className="bg-white p-6 rounded-2xl border shadow-sm">
+        <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2"><Search size={18} /> Student Records</h3>
+        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name or admission ID..." className="w-full p-4 bg-gray-50 border border-gray-200 rounded-xl text-sm" />
+        
+        {searchResults.length > 0 && (
           <div className="mt-4 space-y-2">
-            {searchResults.map(student => (
-              <button key={student._id} onClick={() => setSelectedStudentId(student._id)} className="w-full p-3 bg-gray-50 rounded-lg flex justify-between items-center hover:bg-indigo-50 border border-gray-100 transition-all">
-                <span className="font-bold text-sm text-gray-800">{student.lastName}, {student.firstName}</span>
-                <span className="text-[10px] font-mono bg-white px-2 py-1 rounded border">{student.admissionNumber}</span>
+            {searchResults.map(s => (
+              <button key={s._id} onClick={() => setSelectedStudentId(s._id)} className="w-full p-4 bg-white border border-gray-100 rounded-xl flex justify-between hover:border-indigo-200 transition-all">
+                <span className="font-semibold text-sm">
+                  <HighlightText text={`${s.lastName}, ${s.firstName} ${s.middleName || ''}`} query={searchQuery} />
+                </span>
+                <span className="text-[10px] font-mono font-bold bg-gray-100 px-2 py-1 rounded">{s.admissionNumber}</span>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Student History Console */}
+      {/* History Console */}
       {selectedStudentId && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-white rounded-2xl border shadow-sm p-2">
           <StudentHistoryConsole studentId={selectedStudentId} adminToken={token!} />
-          <div className="p-4 border-t text-center">
-            <button onClick={() => setSelectedStudentId(null)} className="text-xs font-black text-gray-400 underline hover:text-gray-600">Close History Viewer</button>
-          </div>
+          <button onClick={() => setSelectedStudentId(null)} className="w-full py-3 text-xs font-bold text-gray-400 hover:text-gray-600">Close Viewer</button>
         </div>
       )}
     </div>
