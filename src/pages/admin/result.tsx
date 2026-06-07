@@ -17,12 +17,12 @@ interface PendingResult {
   class: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   studentId: {
-    firstName: string;
-    lastName: string;
-    surname: string;
-    admissionNumber: string;
-    class: string;
-  };
+    firstName?: string;
+    lastName?: string;
+    surname?: string;
+    admissionNumber?: string;
+    class?: string;
+  } | null;
   uploadedBy: {
     name: string;
     email: string;
@@ -173,24 +173,16 @@ const Results = () => {
     return true;
   });
 
- const getStudentFullName = (result: PendingResult) => {
-    const s = result.studentId;
-    if (!s) return 'Unknown Student';
-
-    const surname = s.surname || s.lastName;
-    const firstName = s.firstName;
-
-    if (surname && firstName) {
-      return `${surname.toUpperCase()}, ${firstName}`;
-    }
-    if (surname) {
-      return surname.toUpperCase();
-    }
-    if (firstName) {
-      return firstName;
-    }
+  const getStudentFullName = (result: PendingResult) => {
+    if (!result.studentId) return `Student (Adm: ${result.admissionNumber})`;
     
-    return 'Unnamed Student';
+    const { surname, lastName, firstName } = result.studentId;
+    const namePart = (surname || lastName || firstName || '').trim();
+
+    if (!namePart) return `Student (Adm: ${result.admissionNumber})`;
+
+    const fullName = [surname || lastName, firstName].filter(Boolean).join(', ');
+    return fullName.toUpperCase();
   };
 
   return (
