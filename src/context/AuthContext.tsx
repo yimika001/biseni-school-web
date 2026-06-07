@@ -18,21 +18,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('bss_token');
-    const savedUser = localStorage.getItem('bss_user');
-    if (savedToken && savedUser) {
-      setAuthState({
-        user: JSON.parse(savedUser),
-        isAuthenticated: true,
-        token: savedToken,
-        loading: false,
-      });
-    } else {
-      setAuthState(prev => ({ ...prev, loading: false }));
-    }
+    const initializeAuth = () => {
+      let savedToken = localStorage.getItem('bss_token');
+      const savedUser = localStorage.getItem('bss_user');
+
+      // SANITIZATION: Clean the token of any accidental wrapping quotes
+      if (savedToken && savedToken.startsWith('"') && savedToken.endsWith('"')) {
+        savedToken = savedToken.slice(1, -1);
+      }
+
+      if (savedToken && savedUser) {
+        try {
+          setAuthState({
+            user: JSON.parse(savedUser),
+            isAuthenticated: true,
+            token: savedToken,
+            loading: false,
+          });
+        } catch (e) {
+          // If JSON.parse fails, clear corrupted data
+          console.error("Auth initialization failed, clearing storage");
+          logout();
+        }
+      } else {
+        setAuthState(prev => ({ ...prev, loading: false }));
+      }
+    };
+
+    initializeAuth();
   }, []);
 
   const login = (userData: User, token: string) => {
+    // Save cleanly without extra quotes
     localStorage.setItem('bss_token', token);
     localStorage.setItem('bss_user', JSON.stringify(userData));
     setAuthState({ user: userData, isAuthenticated: true, token, loading: false });
