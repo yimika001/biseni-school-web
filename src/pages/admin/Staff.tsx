@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, UserPlus, Mail, Briefcase, Trash2, X, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { Search, UserPlus, Mail, Briefcase, Trash2, X, ChevronLeft, ChevronRight, BookOpen, AlertCircle, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -37,10 +37,18 @@ const Staff = () => {
   const [showModal, setShowModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; name: string } | null>(null);
   const [newCredentials, setNewCredentials] = useState<{ name: string; email: string; defaultPassword: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
+  // 🛠️ DELETE MODAL STATE
+  const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Toast State
+  const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([]);
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
@@ -48,6 +56,12 @@ const Staff = () => {
     name: '', email: '', phone: '', role: '', department: 'Sciences',
     subjects: '', qualification: '', joinDate: '',
   });
+
+  const addToast = (message: string, type: 'success' | 'error') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  };
 
   const getAvailableDepartments = () => {
     const roleLower = form.role.toLowerCase();
@@ -82,29 +96,42 @@ const Staff = () => {
 
   const handleAddStaff = async () => {
     if (!form.name || !form.email || !form.role || !form.department) {
-      alert('Please fill in all required fields.');
+      addToast('Please fill in all required fields.', 'error');
       return;
     }
     try {
       setSubmitting(true);
       const payload = { ...form, subjects: form.subjects.split(',').map((s) => s.trim()).filter(Boolean) };
       const response = await axios.post(`${import.meta.env.VITE_API_URL}/staff/add`, payload, { headers: { Authorization: `Bearer ${token}` } });
-      
       setNewCredentials({ name: form.name, ...response.data.credentials });
       setShowModal(false);
       setShowSuccessModal(true);
       fetchStaff();
       setForm({ name: '', email: '', phone: '', role: '', department: 'Sciences', subjects: '', qualification: '', joinDate: '' });
-    } catch (error) { alert('Failed to add staff member.'); } finally { setSubmitting(false); }
+    } catch (error) { addToast('Failed to add staff member.', 'error'); } finally { setSubmitting(false); }
   };
 
-  const confirmDelete = async () => {
-    if (!deleteConfirmation) return;
+  const initiateDeleteRequest = (member: StaffMember) => {
+    setStaffToDelete(member);
+    setDeleteConfirmed(false);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmedDelete = async () => {
+    if (!staffToDelete) return;
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/staff/${deleteConfirmation.id}`, { headers: { Authorization: `Bearer ${token}` } });
-      setDeleteConfirmation(null);
+      setDeleting(true);
+      await axios.delete(`${import.meta.env.VITE_API_URL}/staff/${staffToDelete._id}`, { headers: { Authorization: `Bearer ${token}` } });
+      addToast('Staff member deleted successfully.', 'success');
+      setShowDeleteModal(false);
+      setStaffToDelete(null);
       fetchStaff();
-    } catch (error) { alert('Failed to delete staff member.'); }
+    } catch (error) {
+      addToast('Failed to delete staff member.', 'error');
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmed(false);
+    }
   };
 
   const filtered = staff.filter((s) =>
@@ -120,6 +147,17 @@ const Staff = () => {
 
   return (
     <div className="p-6 lg:p-8 pb-24 md:pb-8">
+
+      {/* Toast Notification Container */}
+      <div className="fixed top-6 right-6 z-[100] flex flex-col gap-2">
+        {toasts.map((toast) => (
+          <div key={toast.id} className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-bold animate-in slide-in-from-right-5 ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+            {toast.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+            {toast.message}
+          </div>
+        ))}
+      </div>
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-tight">Staff Directory</h1>
@@ -157,8 +195,6 @@ const Staff = () => {
                 <div className="space-y-3 border-t pt-4">
                   <div className="flex items-center gap-3 text-sm text-gray-600"><Briefcase size={16} className="text-gray-400 shrink-0" /> <span>{member.department} Department</span></div>
                   <div className="flex items-center gap-3 text-sm text-gray-600"><Mail size={16} className="text-gray-400 shrink-0" /> <span className="truncate">{member.email}</span></div>
-                  
-                  {/* Subjects Allocation Section */}
                   <div className="pt-2">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><BookOpen size={12} /> Subjects</p>
                     <div className="flex flex-wrap gap-1.5">
@@ -169,7 +205,9 @@ const Staff = () => {
                   </div>
                 </div>
                 <div className="mt-6">
-                  <button onClick={() => setDeleteConfirmation({ id: member._id, name: member.name })} className="w-full flex items-center justify-center gap-2 text-xs font-bold py-2 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors text-gray-500"><Trash2 size={14} /> Remove</button>
+                  <button onClick={() => initiateDeleteRequest(member)} className="w-full flex items-center justify-center gap-2 text-xs font-bold py-2 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors text-gray-500">
+                    <Trash2 size={14} /> Remove
+                  </button>
                 </div>
               </div>
             ))}
@@ -185,6 +223,7 @@ const Staff = () => {
         </>
       )}
 
+      {/* Add Staff Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
@@ -219,6 +258,7 @@ const Staff = () => {
         </div>
       )}
 
+      {/* Success Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
@@ -235,16 +275,91 @@ const Staff = () => {
         </div>
       )}
 
-      {deleteConfirmation && (
+      {/* DELETE CONFIRMATION MODAL */}
+      {showDeleteModal && staffToDelete && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6">
-            <h2 className="text-lg font-black text-gray-900 mb-2">Confirm Removal</h2>
-            <p className="text-sm text-gray-500 mb-6">
-              Are you sure you want to remove <span className="font-bold text-gray-900">{deleteConfirmation.name}</span> from the staff directory? This action cannot be undone.
-            </p>
-            <div className="flex gap-3">
-              <button onClick={() => setDeleteConfirmation(null)} className="flex-1 py-2.5 rounded-xl font-bold border border-gray-200 text-gray-600 hover:bg-gray-50">Cancel</button>
-              <button onClick={confirmDelete} className="flex-1 py-2.5 rounded-xl font-bold bg-red-600 text-white hover:bg-red-700">Yes, Remove</button>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-100 transition-all">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-base font-black text-gray-900 uppercase tracking-tight">
+                Delete Staff Record
+              </h3>
+              <button
+                onClick={() => { setShowDeleteModal(false); setStaffToDelete(null); setDeleteConfirmed(false); }}
+                className="p-1.5 hover:bg-gray-100 rounded-full transition-all"
+              >
+                <X size={16} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Staff Info */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Full Name</span>
+                  <span className="text-sm font-extrabold text-gray-900">{staffToDelete.name}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-200">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Staff ID</span>
+                    <span className="text-sm font-bold text-gray-700">{staffToDelete.staffId || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Department</span>
+                    <span className="text-sm font-bold text-gray-700">{staffToDelete.department}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Position / Role</span>
+                    <span className="text-sm font-bold text-gray-700">{staffToDelete.role}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Email Address</span>
+                    <span className="text-sm font-bold text-gray-700 truncate block">{staffToDelete.email || '—'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning */}
+              <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+                <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-red-700 font-medium leading-relaxed">
+                  <span className="font-black">Warning:</span> You are about to permanently delete this staff member's record from the school portal. This action cannot be undone. Once deleted, the staff member will lose access to their account and will no longer be able to log in using their existing credentials.
+                </p>
+              </div>
+
+              {/* Confirmation Checkbox */}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={deleteConfirmed}
+                  onChange={(e) => setDeleteConfirmed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 accent-red-600 cursor-pointer shrink-0"
+                />
+                <span className="text-xs text-gray-600 font-medium leading-relaxed group-hover:text-gray-800 transition-colors">
+                  I understand that I am permanently deleting the record of this staff member. This action cannot be undone.
+                </span>
+              </label>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => { setShowDeleteModal(false); setStaffToDelete(null); setDeleteConfirmed(false); }}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!deleteConfirmed || deleting}
+                onClick={handleConfirmedDelete}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-md shadow-red-600/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
             </div>
           </div>
         </div>
