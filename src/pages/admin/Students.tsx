@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 interface Student {
   _id: string;
   admissionNumber: string;
-  surname: string;       
+  surname: string;        
   firstName: string;
   middleName?: string;   
   class: string;
@@ -18,7 +18,7 @@ interface Student {
 }
 
 interface NewStudent {
-  surname: string;       
+  surname: string;        
   firstName: string;
   middleName: string;    
   gender: string;
@@ -44,22 +44,26 @@ const Students = () => {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [newCredentials, setNewCredentials] = useState<{ name: string; admissionNumber: string; defaultPassword: string } | null>(null);
+  
+  // Toast Notification State
+  const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([]);
 
   // 🛠️ PAGINATION STATE CONFIGURATIONS
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalFilteredRecords, setTotalFilteredRecords] = useState(0);
-  const limitSetting = 20; // Loads 20 students per data slice automatically
+  const limitSetting = 20;
 
   // 🛠️ DELETE MODAL STATE CONFIGURATIONS
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
 
   const [form, setForm] = useState<NewStudent>({
     surname: '',        
     firstName: '',
-    middleName: '',     
+    middleName: '',    
     gender: 'Male',
     class: 'JSS1',
     department: 'General', 
@@ -67,7 +71,12 @@ const Students = () => {
     admissionYear: new Date().getFullYear().toString(),
   });
 
-  // 🛠️ AUTOMATIC CAPITALIZATION FORMATTERS
+  const addToast = (message: string, type: 'success' | 'error') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  };
+
   const formatToUpperCase = (val: string) => val.toUpperCase();
   const formatToTitleCase = (val: string) => {
     return val
@@ -77,7 +86,6 @@ const Students = () => {
       .join(' ');
   };
 
-  // Reset page counter back to 1 whenever filtering query definitions alter
   useEffect(() => {
     setPage(1);
   }, [searchTerm, filterClass]);
@@ -92,10 +100,7 @@ const Students = () => {
       if (searchTerm) params.search = searchTerm;
       if (filterClass) params.class = filterClass;
 
-      if (!activeToken) {
-        console.error("Authentication missing: No active token found in context or localStorage.");
-        return;
-      }
+      if (!activeToken) return;
 
       const response = await axios.get(
         `${import.meta.env.VITE_API_URL}/students`,
@@ -125,7 +130,7 @@ const Students = () => {
 
   const handleAddStudent = async () => {
     if (!form.surname.trim() || !form.firstName.trim() || !form.class || !form.department) {
-      alert('Please fill in all required fields.');
+      addToast('Please fill in all required fields.', 'error');
       return;
     }
     try {
@@ -139,7 +144,6 @@ const Students = () => {
         { headers: { Authorization: `Bearer ${activeToken}` } }
       );
 
-      // Construct a clean full name layout for the success modal view
       const registeredName = form.middleName.trim()
         ? `${form.surname.trim().toUpperCase()}, ${form.firstName.trim()} ${form.middleName.trim()}`
         : `${form.surname.trim().toUpperCase()}, ${form.firstName.trim()}`;
@@ -150,15 +154,10 @@ const Students = () => {
           admissionNumber: response.data.credentials.admissionNumber,
           defaultPassword: response.data.credentials.defaultPassword,
         });
-      } else if (response.data && response.data.admissionNumber && response.data.defaultPassword) {
-        setNewCredentials({
-          name: registeredName,
-          admissionNumber: response.data.admissionNumber,
-          defaultPassword: response.data.defaultPassword,
-        });
       }
 
       setSuccessMsg(`Student registered successfully!`);
+      addToast('Student registered successfully!', 'success');
       setShowModal(false); 
       setShowSuccessModal(true); 
       fetchStudents();
@@ -174,8 +173,7 @@ const Students = () => {
         admissionYear: new Date().getFullYear().toString(),
       });
     } catch (error) {
-      console.error('Registration error:', error);
-      alert('Failed to register student. Please try again.');
+      addToast('Failed to register student.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -183,6 +181,7 @@ const Students = () => {
 
   const initiateDeleteRequest = (student: Student) => {
     setStudentToDelete(student);
+    setDeleteConfirmed(false);
     setShowDeleteModal(true);
   };
 
@@ -194,13 +193,22 @@ const Students = () => {
         `${import.meta.env.VITE_API_URL}/students/${studentToDelete._id}`,
         { headers: { Authorization: `Bearer ${activeToken}` } }
       );
+      
+      addToast('Student deleted successfully.', 'success');
+      
+      if (students.length === 1 && page > 1) {
+        setPage(page - 1);
+      } else {
+        fetchStudents();
+      }
+      
       setShowDeleteModal(false);
       setStudentToDelete(null);
-      fetchStudents();
     } catch (error) {
-      alert('Failed to delete student.');
+      addToast('Failed to delete student.', 'error');
     } finally {
       setDeleting(false);
+      setDeleteConfirmed(false);
     }
   };
 
@@ -211,9 +219,10 @@ const Students = () => {
         { feesStatus },
         { headers: { Authorization: `Bearer ${activeToken}` } }
       );
+      addToast('Fees status updated.', 'success');
       fetchStudents();
     } catch (error) {
-      alert('Failed to update fees status.');
+      addToast('Failed to update fees status.', 'error');
     }
   };
 
@@ -228,6 +237,15 @@ const Students = () => {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 pb-24 md:pb-8">
+      {/* Toast Notification Container */}
+      <div className="fixed top-6 right-6 z-[100] flex flex-col gap-2">
+        {toasts.map((toast) => (
+          <div key={toast.id} className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-bold animate-in slide-in-from-right-5 ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+            {toast.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+            {toast.message}
+          </div>
+        ))}
+      </div>
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 md:mb-8">
@@ -279,7 +297,6 @@ const Students = () => {
       <div className="bg-white border border-gray-100 md:rounded-xl shadow-sm overflow-hidden rounded-lg">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            {/* Table Header - Only visible on desktop/tablet */}
             <thead className="bg-gray-50 border-b border-gray-100 hidden md:table-header-group">
               <tr>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Student Name</th>
@@ -315,12 +332,10 @@ const Students = () => {
                 </tr>
               ) : (
                 students.map((student) => (
-                  /* Responsive Wrapper: Turns into a self-contained card frame on mobile layout screens */
                   <tr 
                     key={student._id} 
                     className="block md:table-row hover:bg-gray-50/50 transition-colors p-4 md:p-0 border-b border-gray-100 last:border-0 md:border-b-0"
                   >
-                    {/* Name Column */}
                     <td className="block md:table-cell md:px-6 md:py-4 pb-3">
                       <div className="flex justify-between items-start md:block">
                         <div>
@@ -331,14 +346,12 @@ const Students = () => {
                             {student.gender} · {student.department}
                           </div>
                         </div>
-                        {/* Quick Class Badge display on phone top right corner layout */}
                         <span className="md:hidden px-2.5 py-0.5 bg-gray-100 text-gray-600 rounded-full text-[11px] font-bold">
                           {student.class}
                         </span>
                       </div>
                     </td>
 
-                    {/* Meta Information Container (Admission No, Class, Status, Actions) - Grid structure on Mobile */}
                     <td className="block md:table-cell md:px-6 md:py-4 py-2 border-t border-dashed border-gray-100 md:border-none">
                       <div className="grid grid-cols-2 md:block gap-y-2">
                         <div className="md:hidden text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center">
@@ -350,14 +363,12 @@ const Students = () => {
                       </div>
                     </td>
 
-                    {/* Class Column - Hidden completely on mobile view since it exists in the top right header area badge context */}
                     <td className="hidden md:table-cell md:px-6 md:py-4">
                       <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-bold">
                         {student.class}
                       </span>
                     </td>
 
-                    {/* Fees Status Dropdown Column */}
                     <td className="block md:table-cell md:px-6 md:py-4 py-2">
                       <div className="grid grid-cols-2 md:block items-center">
                         <div className="md:hidden text-xs font-bold text-gray-400 uppercase tracking-wider">
@@ -377,7 +388,6 @@ const Students = () => {
                       </div>
                     </td>
 
-                    {/* Actions Controller Row Segment */}
                     <td className="block md:table-cell md:px-6 md:py-4 pt-3 md:text-right border-t border-dashed border-gray-100 md:border-none">
                       <div className="flex justify-between md:justify-end items-center">
                         <div className="md:hidden text-xs font-bold text-gray-400 uppercase tracking-wider">
@@ -613,43 +623,89 @@ const Students = () => {
       {showDeleteModal && studentToDelete && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-100 transition-all">
-            <div className="p-6 text-center">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 text-red-600 mb-4">
-                <Trash2 size={24} />
-              </div>
-              <h3 className="text-lg font-black text-gray-900 uppercase tracking-tight mb-2">
-                Confirm Deletion
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-base font-black text-gray-900 uppercase tracking-tight">
+                Delete Student Record
               </h3>
-              <p className="text-sm text-gray-500 leading-relaxed">
-                Are you sure you want to delete{' '}
-                <span className="font-bold text-gray-800">
-                  {studentToDelete.surname?.toUpperCase()}, {studentToDelete.firstName} ({studentToDelete.class})
-                </span>
-                ? This action is permanent and completely clears their records.
-              </p>
+              <button
+                onClick={() => { setShowDeleteModal(false); setStudentToDelete(null); setDeleteConfirmed(false); }}
+                className="p-1.5 hover:bg-gray-100 rounded-full transition-all"
+              >
+                <X size={16} className="text-gray-500" />
+              </button>
             </div>
-            <div className="bg-gray-50 px-6 py-4 flex gap-3">
+
+            <div className="p-6 space-y-4">
+              {/* Student Info */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Full Name</span>
+                  <span className="text-sm font-extrabold text-gray-900">
+                    {studentToDelete.surname?.toUpperCase()}, {studentToDelete.firstName} {studentToDelete.middleName || ''}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-gray-200">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Reg. Number</span>
+                    <span className="text-sm font-bold text-gray-700">{studentToDelete.admissionNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Class</span>
+                    <span className="text-sm font-bold text-gray-700">{studentToDelete.class}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Department</span>
+                    <span className="text-sm font-bold text-gray-700">{studentToDelete.department}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning */}
+              <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
+                <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-red-700 font-medium leading-relaxed">
+                  <span className="font-black">Warning:</span> You are about to permanently delete this student's record from the school portal. This action cannot be undone. Once deleted, the student will no longer be able to log in using their existing credentials.
+                </p>
+              </div>
+
+              {/* Confirmation Checkbox */}
+              <label className="flex items-start gap-3 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={deleteConfirmed}
+                  onChange={(e) => setDeleteConfirmed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 accent-red-600 cursor-pointer shrink-0"
+                />
+                <span className="text-xs text-gray-600 font-medium leading-relaxed group-hover:text-gray-800 transition-colors">
+                  I understand that I am permanently deleting the record of this student. This action cannot be undone.
+                </span>
+              </label>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
               <button
                 type="button"
                 disabled={deleting}
-                onClick={() => { setShowDeleteModal(false); setStudentToDelete(null); }}
+                onClick={() => { setShowDeleteModal(false); setStudentToDelete(null); setDeleteConfirmed(false); }}
                 className="flex-1 py-2.5 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={deleting}
+                disabled={!deleteConfirmed || deleting}
                 onClick={handleConfirmedDelete}
-                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-md shadow-red-600/10 disabled:opacity-50"
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-md shadow-red-600/10 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {deleting ? 'Deleting...' : 'Yes, Delete'}
+                {deleting ? 'Deleting...' : 'Confirm Delete'}
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 };

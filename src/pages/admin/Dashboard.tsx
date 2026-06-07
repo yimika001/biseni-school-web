@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Check, Users, UserCheck, AlertTriangle, BookOpen, Save, X } from 'lucide-react';
+import { Loader2, Check, Users, UserCheck, AlertTriangle, BookOpen, Lock, Unlock, X } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 import StudentHistoryConsole from './StudentHistoryConsole';
@@ -23,6 +23,8 @@ const Dashboard = () => {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
+  const formatCurrency = (val: number) => new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(val || 0);
+
   const fetchData = async () => {
     try {
       const [statsRes, termRes] = await Promise.all([
@@ -38,19 +40,17 @@ const Dashboard = () => {
   const handleSaveTerm = async () => {
     try {
       await axios.patch(`${import.meta.env.VITE_API_URL}/active-term`, editTerm, { headers: { Authorization: `Bearer ${token}` } });
-      setSuccessMsg("Academic term and session updated successfully.");
+      setSuccessMsg("Updated successfully.");
       setShowSessionModal(false);
       fetchData();
       setTimeout(() => setSuccessMsg(null), 3000);
-    } catch (e) { alert("Failed to update session"); }
+    } catch (e) { alert("Failed to update"); }
   };
 
   const toggleTermLock = async () => {
     await axios.patch(`${import.meta.env.VITE_API_URL}/active-term/toggle`, {}, { headers: { Authorization: `Bearer ${token}` } });
-    setSuccessMsg(`Term status updated.`);
     setShowLockModal(false);
     await fetchData();
-    setTimeout(() => setSuccessMsg(null), 3000);
   };
 
   useEffect(() => { if (token) fetchData(); }, [token]);
@@ -72,28 +72,33 @@ const Dashboard = () => {
       
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <h1 className="text-3xl font-black text-slate-900">Dashboard</h1>
-        <button onClick={() => setShowSessionModal(true)} className="bg-white p-4 rounded-3xl border shadow-sm hover:border-indigo-300 transition-all text-left">
+        <button onClick={() => setShowSessionModal(true)} className="bg-white p-4 rounded-3xl border shadow-sm hover:border-indigo-300 transition-all text-left min-w-[200px]">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Active Session</p>
           <p className="text-sm font-black text-slate-800">{termState?.term} Term · {termState?.session}</p>
+          <div className="mt-2 flex items-center gap-1 text-[10px] font-bold">
+            {termState?.isLocked ? <><Lock size={12} className="text-red-500"/> <span className="text-red-500">Term Locked</span></> : <><Unlock size={12} className="text-green-500"/> <span className="text-green-500">Term Unlocked</span></>}
+          </div>
         </button>
       </div>
 
-      {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { label: 'Total Students', value: stats.totalStudents, icon: Users, color: 'text-blue-600' },
-            { label: 'Total Staff', value: stats.totalStaff, icon: UserCheck, color: 'text-indigo-600' },
-            { label: 'Pending Fees', value: stats.feesOverview.pendingCount, icon: AlertTriangle, color: 'text-amber-600' },
-            { label: 'Pending Results', value: stats.pendingResults, icon: BookOpen, color: 'text-rose-600' },
-          ].map((s, i) => (
-            <div key={i} className="bg-white p-6 rounded-3xl border shadow-sm">
-              <s.icon className={`${s.color} mb-2`} size={20} />
-              <p className="text-[10px] font-black text-slate-400 uppercase">{s.label}</p>
-              <p className="text-2xl font-black text-slate-900">{s.value}</p>
-            </div>
-          ))}
-        </div>
-      )}
+     {stats && (
+  <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+    {[
+      { label: 'Total Students', value: stats.totalStudents, icon: Users, color: 'text-blue-600', bg: 'from-blue-50' },
+      { label: 'Total Staff', value: stats.totalStaff, icon: UserCheck, color: 'text-indigo-600', bg: 'from-indigo-50' },
+      { label: 'Paid Fees', value: stats.feesOverview.paidCount, icon: Check, color: 'text-emerald-600', bg: 'from-emerald-50' },
+      { label: 'Part Payment', value: stats.feesOverview.partPaidCount, icon: AlertTriangle, color: 'text-purple-600', bg: 'from-purple-50' },
+      { label: 'Pending Fees', value: stats.feesOverview.pendingCount, icon: AlertTriangle, color: 'text-amber-600', bg: 'from-amber-50' },
+      { label: 'Pending Results', value: stats.pendingResults, icon: BookOpen, color: 'text-rose-600', bg: 'from-rose-50' },
+    ].map((s, i) => (
+      <div key={i} className={`bg-gradient-to-br ${s.bg} to-white p-6 rounded-3xl border shadow-sm`}>
+        <s.icon className={`${s.color} mb-2`} size={20} />
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{s.label}</p>
+        <p className="text-2xl font-black text-slate-900">{s.value}</p>
+      </div>
+    ))}
+  </div>
+)}
 
       <div className="bg-white p-6 rounded-3xl border shadow-sm">
         <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name..." className="w-full p-4 bg-slate-50 rounded-2xl outline-none" />
@@ -112,12 +117,13 @@ const Dashboard = () => {
 
       {showSessionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-3xl p-8 max-w-sm w-full space-y-4">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full space-y-4 relative">
+            <button onClick={() => setShowSessionModal(false)} className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-800 transition-colors"><X size={24}/></button>
             <h3 className="font-black text-lg">Manage Session</h3>
             <select className="w-full p-3 bg-slate-100 rounded-xl font-bold" value={editTerm.term} onChange={e => setEditTerm({...editTerm, term: e.target.value})}>
               <option value="First">First Term</option><option value="Second">Second Term</option><option value="Third">Third Term</option>
             </select>
-            <input className="w-full p-3 bg-slate-100 rounded-xl font-bold" value={editTerm.session} onChange={e => setEditTerm({...editTerm, session: e.target.value})} placeholder="Session (e.g. 2025/2026)" />
+            <input className="w-full p-3 bg-slate-100 rounded-xl font-bold" value={editTerm.session} onChange={e => setEditTerm({...editTerm, session: e.target.value})} />
             <button onClick={handleSaveTerm} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold">Save Changes</button>
             <button onClick={() => {setShowSessionModal(false); setShowLockModal(true)}} className="w-full py-3 bg-slate-100 rounded-xl font-bold">{termState?.isLocked ? 'Unlock Term' : 'Lock Term'}</button>
           </div>
