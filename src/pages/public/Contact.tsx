@@ -40,7 +40,7 @@ const Contact = () => {
               {
                 icon: <Phone size={22} />,
                 label: 'Phone',
-                value: '+234 (0) 800 123 4567',
+                value: '+234 (0) 800 672 7573',
                 sub: 'Monday – Friday, 8am – 3pm'
               },
               {

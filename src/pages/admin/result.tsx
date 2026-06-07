@@ -43,13 +43,13 @@ const classes = ['JSS1', 'JSS2', 'JSS3', 'SS1', 'SS2', 'SS3'];
 const terms = ['First', 'Second', 'Third'];
 
 const Results = () => {
-  const { token } = useAuth();
+  const { token, loading: authLoading } = useAuth();
 
   const [uiError, setUiError] = useState<string | null>(null);
   const [activeTerm, setActiveTerm] = useState<ActiveTerm | null>(null);
 
   const [pendingResults, setPendingResults] = useState<PendingResult[]>([]);
-  const [loadingPending, setLoadingPending] = useState(false);
+  const [loadingPending, setLoadingPending] = useState(true);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
 
@@ -68,10 +68,16 @@ const Results = () => {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
   };
 
+  // ✅ CRITICAL FIX: Wait for auth to finish loading before making any API calls.
+  // Previously, useEffect fired on mount while token was still null (authLoading: true),
+  // causing all requests to send "Bearer null" → 401 → "session expired" error + no results.
   useEffect(() => {
+    if (authLoading) return;   // auth still restoring token from localStorage — wait
+    if (!token) return;        // not authenticated at all — do nothing
+
     fetchActiveTerm();
     fetchPendingResults();
-  }, []);
+  }, [authLoading, token]);
 
   const fetchActiveTerm = async () => {
     try {
@@ -88,13 +94,19 @@ const Results = () => {
   const fetchPendingResults = async () => {
     try {
       setLoadingPending(true);
+      setUiError(null);
       const response = await axios.get(
         `${import.meta.env.VITE_API_URL}/results/pending`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setPendingResults(response.data.results);
-    } catch {
-      setUiError('Failed to fetch pending results from server.');
+      setPendingResults(response.data.results || []);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        setUiError('Authentication error. Please log out and log back in.');
+      } else {
+        setUiError('Failed to fetch pending results from server.');
+      }
     } finally {
       setLoadingPending(false);
     }
@@ -172,16 +184,16 @@ const Results = () => {
   });
 
   /**
-   * Resolves student full name from the populated studentId object.
-   * Backend populates: firstName, surname, middleName (see resultController getPendingResults).
+   * Resolves student full name from the Mongoose-populated studentId object.
+   * Backend selects: firstName, surname, middleName (resultController.getPendingResults).
    * Format: SURNAME, Firstname [Middlename]
-   * Falls back to admissionNumber stored directly on the Result document if populate failed.
+   * Falls back to the admissionNumber stored on the Result document itself if populate failed
+   * (e.g. student document was deleted after result was created).
    */
   const getStudentFullName = (result: PendingResult): string => {
     const s = result.studentId;
 
-    // studentId came back as an unpopulated ObjectId string — populate failed
-    // This happens when the student document was deleted but result still exists
+    // Unpopulated — Mongoose returned a raw ObjectId string
     if (!s || typeof s === 'string') {
       return result.admissionNumber || 'Unknown Student';
     }
@@ -190,18 +202,26 @@ const Results = () => {
     const firstName = (s.firstName || '').trim();
     const middleName = (s.middleName || '').trim();
 
-    // Both name parts missing — populate returned an empty/partial object
+    // Populate returned an object but all name fields are empty
     if (!surname && !firstName) {
       return result.admissionNumber || 'Unknown Student';
     }
 
-    // Build: SURNAME, Firstname Middlename
     const givenNames = [firstName, middleName].filter(Boolean).join(' ');
 
     if (surname && givenNames) return `${surname.toUpperCase()}, ${givenNames}`;
     if (surname) return surname.toUpperCase();
     return givenNames;
   };
+
+  // Show a neutral loading state while auth is still initializing
+  if (authLoading) {
+    return (
+      <div className="p-4 md:p-8 max-w-7xl mx-auto">
+        <div className="text-center py-16 text-gray-400 font-semibold text-sm">Initializing session...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto">
