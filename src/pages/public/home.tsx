@@ -21,7 +21,7 @@ const Home = () => {
         <div className="absolute inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-r from-gray-900 via-gray-900/80 to-transparent z-10" />
           <img 
-            src="https://images.unsplash.com/photo-1523050853063-913ec36b5995?auto=format&fit=crop&q=80" 
+            src="image/school5.jpg" 
             alt="Biseni Secondary School Campus" 
             className="w-full h-full object-cover opacity-50"
           />
@@ -113,7 +113,7 @@ const Home = () => {
           <div className="relative">
             <div className="absolute -top-10 -left-10 w-40 h-40 bg-accent/20 rounded-full blur-3xl" />
             <img 
-              src="https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&q=80" 
+              src="image/school3.jpg" 
               alt="Students Learning" 
               className="rounded-[3rem] shadow-2xl relative z-10"
             />

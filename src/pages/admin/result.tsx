@@ -3,6 +3,16 @@ import { CheckCircle, XCircle, Clock, AlertTriangle, X, AlertCircle } from 'luci
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
+interface PopulatedStudent {
+  _id?: string;
+  firstName?: string;
+  surname?: string;
+  middleName?: string;
+  admissionNumber?: string;
+  class?: string;
+  [key: string]: any;
+}
+
 interface PendingResult {
   _id: string;
   admissionNumber: string;
@@ -16,15 +26,7 @@ interface PendingResult {
   session: string;
   class: string;
   status: 'Pending' | 'Approved' | 'Rejected';
-  studentId: {
-    firstName?: string;
-    lastName?: string;
-    surname?: string;
-    middleName?: string;
-    admissionNumber?: string;
-    class?: string;
-    [key: string]: any;
-  } | null;
+  studentId: PopulatedStudent | string | null;
   uploadedBy: {
     name: string;
     email: string;
@@ -46,22 +48,18 @@ const Results = () => {
   const [uiError, setUiError] = useState<string | null>(null);
   const [activeTerm, setActiveTerm] = useState<ActiveTerm | null>(null);
 
-  // Pending Results States
   const [pendingResults, setPendingResults] = useState<PendingResult[]>([]);
   const [loadingPending, setLoadingPending] = useState(false);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('');
 
-  // Toast State
   const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([]);
 
-  // Reject Modal State
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [resultToReject, setResultToReject] = useState<PendingResult | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
 
-  // Approve loading state
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const addToast = (message: string, type: 'success' | 'error') => {
@@ -105,7 +103,6 @@ const Results = () => {
   const handleApprove = async (id: string) => {
     try {
       setApprovingId(id);
-      setUiError(null);
       await axios.put(
         `${import.meta.env.VITE_API_URL}/results/${id}/approve`,
         {},
@@ -130,7 +127,6 @@ const Results = () => {
     if (!resultToReject || !rejectionReason.trim()) return;
     try {
       setRejecting(true);
-      setUiError(null);
       await axios.put(
         `${import.meta.env.VITE_API_URL}/results/${resultToReject._id}/reject`,
         { rejectionReason: rejectionReason.trim() },
@@ -175,37 +171,35 @@ const Results = () => {
     return true;
   });
 
-  // Resolves student full name from whatever fields the backend populates.
-  // The student model uses: surname (family name) + firstName + optional middleName.
-  // Mongoose populate may return any combination depending on the select projection.
+  /**
+   * Resolves student full name from the populated studentId object.
+   * Backend populates: firstName, surname, middleName (see resultController getPendingResults).
+   * Format: SURNAME, Firstname [Middlename]
+   * Falls back to admissionNumber stored directly on the Result document if populate failed.
+   */
   const getStudentFullName = (result: PendingResult): string => {
     const s = result.studentId;
 
-    // No populated student object — fall back to admission number only
-    if (!s || typeof s !== 'object') {
+    // studentId came back as an unpopulated ObjectId string — populate failed
+    // This happens when the student document was deleted but result still exists
+    if (!s || typeof s === 'string') {
       return result.admissionNumber || 'Unknown Student';
     }
 
-    // Log all keys in dev so we can see exactly what the backend returns
-    if (import.meta.env.DEV) {
-      console.log('[Result studentId fields]', Object.keys(s), s);
+    const surname = (s.surname || '').trim();
+    const firstName = (s.firstName || '').trim();
+    const middleName = (s.middleName || '').trim();
+
+    // Both name parts missing — populate returned an empty/partial object
+    if (!surname && !firstName) {
+      return result.admissionNumber || 'Unknown Student';
     }
 
-    // Pick the family/last name — prefer 'surname' (as defined in Student model)
-    const familyName = (s.surname || s.lastName || '').trim();
-    const first = (s.firstName || '').trim();
-    const middle = (s.middleName || '').trim();
+    // Build: SURNAME, Firstname Middlename
+    const givenNames = [firstName, middleName].filter(Boolean).join(' ');
 
-    if (!familyName && !first) {
-      // Nothing resolved — try any string value on the object as last resort
-      const anyName = Object.values(s).find(v => typeof v === 'string' && v.length > 0);
-      return anyName ? String(anyName) : result.admissionNumber;
-    }
-
-    // Format: SURNAME, Firstname Middlename
-    const givenNames = [first, middle].filter(Boolean).join(' ');
-    if (familyName && givenNames) return `${familyName.toUpperCase()}, ${givenNames}`;
-    if (familyName) return familyName.toUpperCase();
+    if (surname && givenNames) return `${surname.toUpperCase()}, ${givenNames}`;
+    if (surname) return surname.toUpperCase();
     return givenNames;
   };
 
@@ -374,7 +368,6 @@ const Results = () => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
 
-            {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <h3 className="text-base font-black text-gray-900 uppercase tracking-tight">Reject Result</h3>
               <button
@@ -386,7 +379,6 @@ const Results = () => {
             </div>
 
             <div className="p-6 space-y-4">
-              {/* Result Info */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Student</span>
@@ -420,7 +412,6 @@ const Results = () => {
                 </div>
               </div>
 
-              {/* Warning */}
               <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
                 <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-red-700 font-medium leading-relaxed">
@@ -428,7 +419,6 @@ const Results = () => {
                 </p>
               </div>
 
-              {/* Rejection Reason Textarea */}
               <div>
                 <label className="block text-xs font-black text-gray-600 uppercase tracking-wider mb-1.5">
                   Rejection Reason <span className="text-red-500">*</span>
@@ -446,7 +436,6 @@ const Results = () => {
               </div>
             </div>
 
-            {/* Footer */}
             <div className="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
               <button
                 type="button"
