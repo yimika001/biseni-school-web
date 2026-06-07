@@ -173,12 +173,24 @@ const Results = () => {
     return true;
   });
 
-  const getStudentFullName = (result: PendingResult) => {
+ const getStudentFullName = (result: PendingResult) => {
     const s = result.studentId;
     if (!s) return 'Unknown Student';
-    if (s.surname) return `${s.surname.toUpperCase()}, ${s.firstName}`;
-    if (s.lastName) return `${s.lastName.toUpperCase()}, ${s.firstName}`;
-    return s.firstName || 'Unknown Student';
+
+    const surname = s.surname || s.lastName;
+    const firstName = s.firstName;
+
+    if (surname && firstName) {
+      return `${surname.toUpperCase()}, ${firstName}`;
+    }
+    if (surname) {
+      return surname.toUpperCase();
+    }
+    if (firstName) {
+      return firstName;
+    }
+    
+    return 'Unnamed Student';
   };
 
   return (
