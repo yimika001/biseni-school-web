@@ -20,8 +20,10 @@ interface PendingResult {
     firstName?: string;
     lastName?: string;
     surname?: string;
+    middleName?: string;
     admissionNumber?: string;
     class?: string;
+    [key: string]: any;
   } | null;
   uploadedBy: {
     name: string;
@@ -173,16 +175,38 @@ const Results = () => {
     return true;
   });
 
-  const getStudentFullName = (result: PendingResult) => {
-    if (!result.studentId) return `Student (Adm: ${result.admissionNumber})`;
-    
-    const { surname, lastName, firstName } = result.studentId;
-    const namePart = (surname || lastName || firstName || '').trim();
+  // Resolves student full name from whatever fields the backend populates.
+  // The student model uses: surname (family name) + firstName + optional middleName.
+  // Mongoose populate may return any combination depending on the select projection.
+  const getStudentFullName = (result: PendingResult): string => {
+    const s = result.studentId;
 
-    if (!namePart) return `Student (Adm: ${result.admissionNumber})`;
+    // No populated student object — fall back to admission number only
+    if (!s || typeof s !== 'object') {
+      return result.admissionNumber || 'Unknown Student';
+    }
 
-    const fullName = [surname || lastName, firstName].filter(Boolean).join(', ');
-    return fullName.toUpperCase();
+    // Log all keys in dev so we can see exactly what the backend returns
+    if (import.meta.env.DEV) {
+      console.log('[Result studentId fields]', Object.keys(s), s);
+    }
+
+    // Pick the family/last name — prefer 'surname' (as defined in Student model)
+    const familyName = (s.surname || s.lastName || '').trim();
+    const first = (s.firstName || '').trim();
+    const middle = (s.middleName || '').trim();
+
+    if (!familyName && !first) {
+      // Nothing resolved — try any string value on the object as last resort
+      const anyName = Object.values(s).find(v => typeof v === 'string' && v.length > 0);
+      return anyName ? String(anyName) : result.admissionNumber;
+    }
+
+    // Format: SURNAME, Firstname Middlename
+    const givenNames = [first, middle].filter(Boolean).join(' ');
+    if (familyName && givenNames) return `${familyName.toUpperCase()}, ${givenNames}`;
+    if (familyName) return familyName.toUpperCase();
+    return givenNames;
   };
 
   return (
@@ -287,7 +311,6 @@ const Results = () => {
             <div key={result._id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md/5 transition-all">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
                 <div className="space-y-1">
-                  {/* Student Full Name — prominent at top */}
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Student Name</p>
                   <h3 className="font-black text-gray-900 text-base leading-tight">
                     {getStudentFullName(result)}
