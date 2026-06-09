@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, UserPlus, Mail, Briefcase, Trash2, X, ChevronLeft, ChevronRight, BookOpen, AlertCircle, CheckCircle } from 'lucide-react';
+import { Search, UserPlus, Mail, Briefcase, Trash2, X, ChevronLeft, ChevronRight, BookOpen, AlertCircle, CheckCircle, Pencil } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -26,6 +26,15 @@ interface NewStaff {
   joinDate: string;
 }
 
+interface EditStaffForm {
+  role: string;
+  department: string;
+  subjects: string;
+  qualification: string;
+  status: 'Active' | 'On Leave';
+}
+
+const ALL_DEPARTMENTS = ['Sciences', 'Arts', 'Commercial', 'Vocational', 'Administration', 'General'];
 const SECONDARY_DEPARTMENTS = ['Sciences', 'Arts'];
 const JUNIOR_DEPARTMENTS = ['General'];
 
@@ -40,11 +49,23 @@ const Staff = () => {
   const [newCredentials, setNewCredentials] = useState<{ name: string; email: string; defaultPassword: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // 🛠️ DELETE MODAL STATE
+  // DELETE MODAL STATE
   const [staffToDelete, setStaffToDelete] = useState<StaffMember | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmed, setDeleteConfirmed] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // EDIT MODAL STATE
+  const [staffToEdit, setStaffToEdit] = useState<StaffMember | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState<EditStaffForm>({
+    role: '',
+    department: 'Sciences',
+    subjects: '',
+    qualification: '',
+    status: 'Active',
+  });
+  const [saving, setSaving] = useState(false);
 
   // Toast State
   const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([]);
@@ -134,6 +155,49 @@ const Staff = () => {
     }
   };
 
+  const initiateEditRequest = (member: StaffMember) => {
+    setStaffToEdit(member);
+    setEditForm({
+      role: member.role,
+      department: member.department,
+      subjects: member.subjects.join(', '),
+      qualification: member.qualification || '',
+      status: member.status,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!staffToEdit) return;
+    if (!editForm.role.trim() || !editForm.department.trim()) {
+      addToast('Role and Department are required.', 'error');
+      return;
+    }
+    try {
+      setSaving(true);
+      const payload = {
+        role: editForm.role.trim(),
+        department: editForm.department,
+        subjects: editForm.subjects.split(',').map((s) => s.trim()).filter(Boolean),
+        qualification: editForm.qualification.trim(),
+        status: editForm.status,
+      };
+      await axios.put(
+        `${import.meta.env.VITE_API_URL}/staff/${staffToEdit._id}`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      addToast('Staff record updated successfully.', 'success');
+      setShowEditModal(false);
+      setStaffToEdit(null);
+      fetchStaff();
+    } catch (error) {
+      addToast('Failed to update staff record. Please try again.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const filtered = staff.filter((s) =>
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -204,8 +268,19 @@ const Staff = () => {
                     </div>
                   </div>
                 </div>
-                <div className="mt-6">
-                  <button onClick={() => initiateDeleteRequest(member)} className="w-full flex items-center justify-center gap-2 text-xs font-bold py-2 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors text-gray-500">
+
+                {/* Action Buttons */}
+                <div className="mt-6 flex gap-2">
+                  <button
+                    onClick={() => initiateEditRequest(member)}
+                    className="flex-1 flex items-center justify-center gap-2 text-xs font-bold py-2 border border-primary/20 rounded-lg hover:bg-primary/5 hover:text-primary transition-colors text-gray-500"
+                  >
+                    <Pencil size={14} /> Edit
+                  </button>
+                  <button
+                    onClick={() => initiateDeleteRequest(member)}
+                    className="flex-1 flex items-center justify-center gap-2 text-xs font-bold py-2 border border-red-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors text-gray-500"
+                  >
                     <Trash2 size={14} /> Remove
                   </button>
                 </div>
@@ -275,16 +350,120 @@ const Staff = () => {
         </div>
       )}
 
+      {/* EDIT STAFF MODAL */}
+      {showEditModal && staffToEdit && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-base font-black text-gray-900 uppercase tracking-tight">Edit Staff Record</h3>
+              <button
+                onClick={() => { setShowEditModal(false); setStaffToEdit(null); }}
+                className="p-1.5 hover:bg-gray-100 rounded-full transition-all"
+              >
+                <X size={16} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 max-h-[65vh] overflow-y-auto">
+              {/* Read-only identity info */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-1">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Staff Member</p>
+                <p className="text-sm font-extrabold text-gray-900">{staffToEdit.name}</p>
+                <p className="text-xs text-gray-500 font-medium">{staffToEdit.email}</p>
+              </div>
+
+              {/* Role */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Role / Position *</label>
+                <input
+                  type="text"
+                  value={editForm.role}
+                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
+                  placeholder="e.g. Secondary Teacher"
+                />
+              </div>
+
+              {/* Department */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department *</label>
+                <select
+                  value={editForm.department}
+                  onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary bg-white"
+                >
+                  {ALL_DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+
+              {/* Subjects */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Assigned Subjects</label>
+                <input
+                  type="text"
+                  value={editForm.subjects}
+                  onChange={(e) => setEditForm({ ...editForm, subjects: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
+                  placeholder="e.g. Physics, Mathematics, Chemistry"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Separate multiple subjects with commas.</p>
+              </div>
+
+              {/* Qualification */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Qualification</label>
+                <input
+                  type="text"
+                  value={editForm.qualification}
+                  onChange={(e) => setEditForm({ ...editForm, qualification: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
+                  placeholder="e.g. B.Ed Mathematics, PGDE"
+                />
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Status</label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) => setEditForm({ ...editForm, status: e.target.value as 'Active' | 'On Leave' })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary bg-white"
+                >
+                  <option value="Active">Active</option>
+                  <option value="On Leave">On Leave</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => { setShowEditModal(false); setStaffToEdit(null); }}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handleSaveEdit}
+                className="flex-1 py-2.5 bg-primary text-white rounded-xl font-bold hover:bg-primary-dark transition-all shadow-md shadow-primary/10 disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* DELETE CONFIRMATION MODAL */}
       {showDeleteModal && staffToDelete && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform scale-100 transition-all">
-
-            {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h3 className="text-base font-black text-gray-900 uppercase tracking-tight">
-                Delete Staff Record
-              </h3>
+              <h3 className="text-base font-black text-gray-900 uppercase tracking-tight">Delete Staff Record</h3>
               <button
                 onClick={() => { setShowDeleteModal(false); setStaffToDelete(null); setDeleteConfirmed(false); }}
                 className="p-1.5 hover:bg-gray-100 rounded-full transition-all"
@@ -294,7 +473,6 @@ const Staff = () => {
             </div>
 
             <div className="p-6 space-y-4">
-              {/* Staff Info */}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Full Name</span>
@@ -320,7 +498,6 @@ const Staff = () => {
                 </div>
               </div>
 
-              {/* Warning */}
               <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-4">
                 <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
                 <p className="text-xs text-red-700 font-medium leading-relaxed">
@@ -328,7 +505,6 @@ const Staff = () => {
                 </p>
               </div>
 
-              {/* Confirmation Checkbox */}
               <label className="flex items-start gap-3 cursor-pointer group">
                 <input
                   type="checkbox"
@@ -342,7 +518,6 @@ const Staff = () => {
               </label>
             </div>
 
-            {/* Footer */}
             <div className="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
               <button
                 type="button"

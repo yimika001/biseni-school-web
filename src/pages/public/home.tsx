@@ -29,7 +29,7 @@ const Home = () => {
         <div className="container mx-auto px-6 relative z-20">
           <div className="max-w-3xl">
             <span className="inline-block py-1 px-4 rounded-full bg-primary/20 text-accent text-xs font-bold uppercase tracking-[0.2em] mb-6 border border-accent/30">
-              Mbiama/Biseni Road, Kalama · Yenagoa LGA · Bayelsa State
+              Mbiama/Biseni Road, Kilama · Yenagoa LGA · Bayelsa State
             </span>
             <h1 className="text-5xl md:text-7xl font-black text-white leading-tight mb-6">
               Deeds, <span className="text-primary italic">Not</span> Words.
@@ -113,7 +113,7 @@ const Home = () => {
           <div className="relative">
             <div className="absolute -top-10 -left-10 w-40 h-40 bg-accent/20 rounded-full blur-3xl" />
             <img 
-              src="image/school3.jpg" 
+              src="image/school9.jpg" 
               alt="Students Learning" 
               className="rounded-[3rem] shadow-2xl relative z-10"
             />

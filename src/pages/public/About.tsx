@@ -214,7 +214,7 @@ const About = () => {
                 <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center font-black text-white">B</div>
                 <div>
                   <p className="text-white font-black uppercase text-sm tracking-widest">School Administration</p>
-                  <p className="text-primary text-[10px] font-bold uppercase tracking-widest">Biseni Secondary School, Kalama</p>
+                  <p className="text-primary text-[10px] font-bold uppercase tracking-widest">Biseni Secondary School, Kilama</p>
                 </div>
               </div>
             </div>
