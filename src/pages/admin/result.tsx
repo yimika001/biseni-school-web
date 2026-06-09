@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, Clock, AlertTriangle, X, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, AlertTriangle, X, AlertCircle, Wrench } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 
@@ -10,7 +10,6 @@ interface PopulatedStudent {
   middleName?: string;
   admissionNumber?: string;
   class?: string;
-  [key: string]: any;
 }
 
 interface PendingResult {
@@ -27,10 +26,7 @@ interface PendingResult {
   class: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   studentId: PopulatedStudent | string | null;
-  uploadedBy: {
-    name: string;
-    email: string;
-  };
+  uploadedBy: { name: string; email: string } | null;
 }
 
 interface ActiveTerm {
@@ -55,12 +51,21 @@ const Results = () => {
 
   const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([]);
 
+  // Reject modal
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [resultToReject, setResultToReject] = useState<PendingResult | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
 
+  // Approve single
   const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  // Bulk approve modal
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkApproving, setBulkApproving] = useState(false);
+
+  // Data repair
+  const [repairing, setRepairing] = useState(false);
 
   const addToast = (message: string, type: 'success' | 'error') => {
     const id = Date.now();
@@ -68,13 +73,9 @@ const Results = () => {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
   };
 
-  // ✅ CRITICAL FIX: Wait for auth to finish loading before making any API calls.
-  // Previously, useEffect fired on mount while token was still null (authLoading: true),
-  // causing all requests to send "Bearer null" → 401 → "session expired" error + no results.
   useEffect(() => {
-    if (authLoading) return;   // auth still restoring token from localStorage — wait
-    if (!token) return;        // not authenticated at all — do nothing
-
+    if (authLoading) return;
+    if (!token) return;
     fetchActiveTerm();
     fetchPendingResults();
   }, [authLoading, token]);
@@ -85,7 +86,14 @@ const Results = () => {
         `${import.meta.env.VITE_API_URL}/active-term`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setActiveTerm(response.data.activeTerm);
+      const data = response.data;
+      if (data.activeTerm) {
+        setActiveTerm(data.activeTerm);
+      } else if (data.term) {
+        setActiveTerm({ term: data.term, session: data.session, isLocked: data.isLocked });
+      } else {
+        setActiveTerm(null);
+      }
     } catch {
       setActiveTerm(null);
     }
@@ -156,24 +164,52 @@ const Results = () => {
     }
   };
 
-  const handleApproveBulk = async () => {
+  // Opens the bulk approval confirmation modal
+  const initiateBulkApprove = () => {
     if (!selectedClass || !selectedTerm) {
-      setUiError('Please specify both Class and Term to execute bulk approval.');
+      setUiError('Please specify both Class and Term before bulk approving.');
       return;
     }
+    setShowBulkModal(true);
+  };
+
+  // Executes bulk approval after modal confirmation
+  const handleConfirmedBulkApprove = async () => {
     const currentSession = activeTerm?.session || '';
-    if (!confirm(`Approve all pending results for ${selectedClass} - ${selectedTerm} Term (${currentSession})?`)) return;
     try {
+      setBulkApproving(true);
       setUiError(null);
       await axios.put(
         `${import.meta.env.VITE_API_URL}/results/approve-bulk`,
         { class: selectedClass, term: selectedTerm, session: currentSession },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      addToast('All filtered results approved successfully.', 'success');
+      addToast('Filtered results approved successfully.', 'success');
+      setShowBulkModal(false);
       fetchPendingResults();
     } catch {
       addToast('Bulk approval failed. Please try again.', 'error');
+    } finally {
+      setBulkApproving(false);
+    }
+  };
+
+  // One-time repair: fixes studentId ObjectId references broken by old bulkWrite bug
+  const handleRepairStudentIds = async () => {
+    try {
+      setRepairing(true);
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/results/repair-student-ids`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const { fixed, skipped, notFound, total } = response.data;
+      addToast(`Repair complete: ${fixed} fixed, ${skipped} already correct, ${notFound} unmatched (${total} total).`, 'success');
+      fetchPendingResults();
+    } catch {
+      addToast('Repair failed. Check server logs.', 'error');
+    } finally {
+      setRepairing(false);
     }
   };
 
@@ -183,38 +219,24 @@ const Results = () => {
     return true;
   });
 
-  /**
-   * Resolves student full name from the Mongoose-populated studentId object.
-   * Backend selects: firstName, surname, middleName (resultController.getPendingResults).
-   * Format: SURNAME, Firstname [Middlename]
-   * Falls back to the admissionNumber stored on the Result document itself if populate failed
-   * (e.g. student document was deleted after result was created).
-   */
   const getStudentFullName = (result: PendingResult): string => {
     const s = result.studentId;
-
-    // Unpopulated — Mongoose returned a raw ObjectId string
-    if (!s || typeof s === 'string') {
-      return result.admissionNumber || 'Unknown Student';
-    }
-
+    if (!s || typeof s === 'string') return result.admissionNumber || 'Unknown';
     const surname = (s.surname || '').trim();
     const firstName = (s.firstName || '').trim();
     const middleName = (s.middleName || '').trim();
-
-    // Populate returned an object but all name fields are empty
-    if (!surname && !firstName) {
-      return result.admissionNumber || 'Unknown Student';
-    }
-
-    const givenNames = [firstName, middleName].filter(Boolean).join(' ');
-
-    if (surname && givenNames) return `${surname.toUpperCase()}, ${givenNames}`;
-    if (surname) return surname.toUpperCase();
-    return givenNames;
+    if (!surname && !firstName) return result.admissionNumber || 'Unknown';
+    const parts = [firstName, middleName, surname ? surname.toUpperCase() : ''].filter(Boolean);
+    return parts.join(' ');
   };
 
-  // Show a neutral loading state while auth is still initializing
+  // Check if any result still has empty names — show repair banner if so
+  const hasUnrepairedResults = pendingResults.some((r) => {
+    const s = r.studentId;
+    if (!s || typeof s === 'string') return true;
+    return !(s.firstName || s.surname);
+  });
+
   if (authLoading) {
     return (
       <div className="p-4 md:p-8 max-w-7xl mx-auto">
@@ -226,7 +248,7 @@ const Results = () => {
   return (
     <div className="p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto">
 
-      {/* Toast Notification Container */}
+      {/* Toast Container */}
       <div className="fixed top-6 right-6 z-[100] flex flex-col gap-2">
         {toasts.map((toast) => (
           <div key={toast.id} className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-bold animate-in slide-in-from-right-5 ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
@@ -240,13 +262,44 @@ const Results = () => {
       <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-xl md:text-2xl font-black text-gray-900 uppercase tracking-tight">Results Manager</h1>
-          <p className="text-gray-500 text-xs md:text-sm mt-0.5 font-medium">
-            {activeTerm
-              ? `Active Term: ${activeTerm.term} Term · ${activeTerm.session} · ${activeTerm.isLocked ? '🔒 Locked' : '🔓 Open'}`
-              : 'No active term initialized'}
-          </p>
+          {activeTerm ? (
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <p className="text-gray-700 text-xs md:text-sm font-bold">
+                {activeTerm.term} Term · {activeTerm.session}
+              </p>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${activeTerm.isLocked ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                {activeTerm.isLocked ? '🔒 Term Locked' : '🔓 Term Unlocked'}
+              </span>
+            </div>
+          ) : (
+            <p className="text-gray-400 text-xs md:text-sm mt-0.5 font-medium">No active term initialized</p>
+          )}
         </div>
       </div>
+
+      {/* Data Repair Banner — shown only when student names are missing */}
+      {hasUnrepairedResults && pendingResults.length > 0 && (
+        <div className="mb-5 bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg text-blue-600 shrink-0">
+              <Wrench size={16} />
+            </div>
+            <div>
+              <p className="text-xs font-black text-blue-900 uppercase tracking-wider">Student Names Missing</p>
+              <p className="text-xs text-blue-700 font-medium mt-0.5">
+                Some results have missing student names due to a data issue. Click "Fix Now" to repair the records.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleRepairStudentIds}
+            disabled={repairing}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-blue-700 transition-all disabled:opacity-50 shrink-0"
+          >
+            <Wrench size={13} /> {repairing ? 'Repairing...' : 'Fix Now'}
+          </button>
+        </div>
+      )}
 
       {/* Error Banner */}
       {uiError && (
@@ -302,7 +355,7 @@ const Results = () => {
           </select>
         </div>
         <button
-          onClick={handleApproveBulk}
+          onClick={initiateBulkApprove}
           disabled={!selectedClass || !selectedTerm}
           className="flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm hover:bg-green-700 transition-all shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
         >
@@ -325,11 +378,10 @@ const Results = () => {
             <div key={result._id} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md/5 transition-all">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Student Name</p>
                   <h3 className="font-black text-gray-900 text-base leading-tight">
                     {getStudentFullName(result)}
                   </h3>
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
+                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
                     <span className="text-[10px] bg-amber-100 text-amber-800 font-black px-2 py-0.5 rounded-full uppercase tracking-wider">Pending</span>
                     <span className="text-xs text-gray-400 font-bold">{result.term} Term · {result.session}</span>
                   </div>
@@ -380,6 +432,77 @@ const Results = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* BULK APPROVE CONFIRMATION MODAL */}
+      {showBulkModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h3 className="text-base font-black text-gray-900 uppercase tracking-tight">Approve Filtered Results</h3>
+              <button
+                onClick={() => setShowBulkModal(false)}
+                className="p-1.5 hover:bg-gray-100 rounded-full transition-all"
+              >
+                <X size={16} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 font-medium leading-relaxed">
+                Are you sure you want to approve all currently filtered pending results? This action will approve all matching records.
+              </p>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Records to Approve</span>
+                    <span className="text-sm font-extrabold text-green-700">{filteredPending.length}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Session</span>
+                    <span className="text-sm font-bold text-gray-700">{activeTerm?.session || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Class Filter</span>
+                    <span className="text-sm font-bold text-gray-700">{selectedClass}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Term Filter</span>
+                    <span className="text-sm font-bold text-gray-700">{selectedTerm} Term</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-700 font-medium leading-relaxed">
+                  Once approved, these results will be visible to students and cannot be reversed without admin action.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 px-6 py-4 flex gap-3 border-t border-gray-100">
+              <button
+                type="button"
+                disabled={bulkApproving}
+                onClick={() => setShowBulkModal(false)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={bulkApproving}
+                onClick={handleConfirmedBulkApprove}
+                className="flex-1 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-all shadow-md shadow-green-600/10 disabled:opacity-50"
+              >
+                {bulkApproving ? 'Approving...' : 'Confirm Approval'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
