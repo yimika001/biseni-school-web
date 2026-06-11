@@ -7,7 +7,7 @@ import { API_ENDPOINTS } from '../../config/api';
 interface Allocation {
   subjectName: string;
   classLevel: string;
-  department: 'General' | 'Science' | 'Art';
+  department: 'General' | 'Science' | 'Art' | '';
 }
 
 interface Subject {
@@ -47,11 +47,28 @@ const DEPT_CLASSES: Record<string, string[]> = {
 
 const DEPARTMENTS = ['General', 'Science', 'Art'] as const;
 
+// Flat list of all selectable classes for allocation rows, with derived department mapping
+const ALL_CLASSES: { label: string; department: 'General' | 'Science' | 'Art' }[] = [
+  { label: 'JSS1', department: 'General' },
+  { label: 'JSS2', department: 'General' },
+  { label: 'JSS3', department: 'General' },
+  { label: 'SS1 Science', department: 'Science' },
+  { label: 'SS2 Science', department: 'Science' },
+  { label: 'SS3 Science', department: 'Science' },
+  { label: 'SS1 Art', department: 'Art' },
+  { label: 'SS2 Art', department: 'Art' },
+  { label: 'SS3 Art', department: 'Art' },
+];
+
+const getDepartmentForClass = (classLevel: string): 'General' | 'Science' | 'Art' | '' => {
+  const match = ALL_CLASSES.find(c => c.label === classLevel);
+  return match ? match.department : '';
+};
+
 const AllocationRows = ({
-  list, dept, setter, handleAllocationChange, handleRemoveAllocationRow, handleAddAllocationRow, availableSubjects
+  list, setter, handleAllocationChange, handleRemoveAllocationRow, handleAddAllocationRow, availableSubjects
 }: { 
   list: Allocation[]; 
-  dept: 'General' | 'Science' | 'Art'; 
   setter: (v: Allocation[]) => void;
   handleAllocationChange: any;
   handleRemoveAllocationRow: any;
@@ -62,21 +79,22 @@ const AllocationRows = ({
     {list.map((alloc, idx) => (
       <div key={idx} className="flex gap-2 items-start">
         <select
+          value={alloc.classLevel}
+          onChange={e => handleAllocationChange(list, idx, 'classLevel', e.target.value, setter)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary bg-white"
+        >
+          <option value="">Select Class</option>
+          {ALL_CLASSES.map(c => <option key={c.label} value={c.label}>{c.label}</option>)}
+        </select>
+        <select
           value={alloc.subjectName}
-          onChange={e => handleAllocationChange(list, idx, 'subjectName', e.target.value, setter, dept)}
+          onChange={e => handleAllocationChange(list, idx, 'subjectName', e.target.value, setter)}
           className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary bg-white"
         >
           <option value="">Select Subject</option>
-          {availableSubjects.filter(s => s.department === dept).map(sub => (
+          {availableSubjects.filter(s => alloc.department && s.department === alloc.department).map(sub => (
             <option key={sub._id} value={sub.name}>{sub.name}</option>
           ))}
-        </select>
-        <select
-          value={alloc.classLevel}
-          onChange={e => handleAllocationChange(list, idx, 'classLevel', e.target.value, setter, dept)}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary bg-white"
-        >
-          {DEPT_CLASSES[dept]?.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
         <button
           type="button"
@@ -89,7 +107,7 @@ const AllocationRows = ({
     ))}
     <button
       type="button"
-      onClick={() => handleAddAllocationRow(list, dept, setter)}
+      onClick={() => handleAddAllocationRow(list, setter)}
       className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-dark transition-colors py-1"
     >
       <Plus size={13} /> Add another allocation
@@ -131,7 +149,7 @@ const Staff = () => {
   const [form, setForm] = useState<NewStaff>({
     name: '', email: '', phone: '', role: '', department: 'General', qualification: '', joinDate: '',
   });
-  const [addAllocations, setAddAllocations] = useState<Allocation[]>([{ subjectName: '', classLevel: 'JSS1', department: 'General' }]);
+  const [addAllocations, setAddAllocations] = useState<Allocation[]>([{ subjectName: '', classLevel: '', department: '' }]);
 
   const addToast = (message: string, type: 'success' | 'error') => {
     const id = Date.now();
@@ -177,17 +195,8 @@ const Staff = () => {
   useEffect(() => { fetchData(); }, [token]);
   useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
-  useEffect(() => {
-    setAddAllocations(prev => prev.map(a => ({
-      ...a,
-      department: form.department,
-      subjectName: '',
-      classLevel: DEPT_CLASSES[form.department][0],
-    })));
-  }, [form.department]);
-
-  const handleAddAllocationRow = (list: Allocation[], dept: 'General' | 'Science' | 'Art', setter: (v: Allocation[]) => void) => {
-    setter([...list, { subjectName: '', classLevel: DEPT_CLASSES[dept][0], department: dept }]);
+  const handleAddAllocationRow = (list: Allocation[], setter: (v: Allocation[]) => void) => {
+    setter([...list, { subjectName: '', classLevel: '', department: '' }]);
   };
 
   const handleRemoveAllocationRow = (list: Allocation[], idx: number, setter: (v: Allocation[]) => void) => {
@@ -196,12 +205,20 @@ const Staff = () => {
 
   const handleAllocationChange = (
     list: Allocation[], idx: number, field: keyof Allocation, value: string,
-    setter: (v: Allocation[]) => void, dept: 'General' | 'Science' | 'Art'
+    setter: (v: Allocation[]) => void
   ) => {
     const updated = [...list];
-    updated[idx] = { ...updated[idx], [field]: value };
-    if (field === 'department') {
-      updated[idx].classLevel = DEPT_CLASSES[value as keyof typeof DEPT_CLASSES][0];
+    updated[idx] = { ...updated[idx], [field]: value } as Allocation;
+    if (field === 'classLevel') {
+      // Department is automatically derived from the selected class.
+      // If subject's current department no longer matches, clear it so
+      // the admin re-selects from the correct subject list.
+      const newDept = getDepartmentForClass(value);
+      const prevDept = updated[idx].department;
+      updated[idx].department = newDept;
+      if (newDept !== prevDept) {
+        updated[idx].subjectName = '';
+      }
     }
     setter(updated);
   };
@@ -210,7 +227,7 @@ const Staff = () => {
     if (!form.name || !form.email || !form.role || !form.department) {
       addToast('Please fill in all required fields.', 'error'); return;
     }
-    const validAllocs = addAllocations.filter(a => a.subjectName.trim());
+    const validAllocs = addAllocations.filter(a => a.subjectName.trim() && a.classLevel.trim());
     try {
       setSubmitting(true);
       const res = await axios.post(
@@ -223,7 +240,7 @@ const Staff = () => {
       setShowSuccessModal(true);
       fetchData();
       setForm({ name: '', email: '', phone: '', role: '', department: 'General', qualification: '', joinDate: '' });
-      setAddAllocations([{ subjectName: '', classLevel: 'JSS1', department: 'General' }]);
+      setAddAllocations([{ subjectName: '', classLevel: '', department: '' }]);
     } catch { addToast('Failed to add staff member.', 'error'); } finally { setSubmitting(false); }
   };
 
@@ -233,17 +250,22 @@ const Staff = () => {
     setEditDept((member.department as 'General' | 'Science' | 'Art') || 'General');
     setEditQual(member.qualification || '');
     setEditStatus(member.status);
+    // Load existing allocations exactly as stored — no rewrite/reset/migration.
     setEditAllocations(
       member.allocations?.length
-        ? member.allocations
-        : [{ subjectName: '', classLevel: DEPT_CLASSES[member.department]?.[0] || 'JSS1', department: (member.department as 'General' | 'Science' | 'Art') || 'General' }]
+        ? member.allocations.map(a => ({
+            subjectName: a.subjectName || '',
+            classLevel: a.classLevel || '',
+            department: (a.department as 'General' | 'Science' | 'Art' | '') || '',
+          }))
+        : [{ subjectName: '', classLevel: '', department: '' }]
     );
     setShowEditModal(true);
   };
 
   const handleSaveEdit = async () => {
     if (!staffToEdit || !editRole.trim()) { addToast('Role is required.', 'error'); return; }
-    const validAllocs = editAllocations.filter(a => a.subjectName.trim());
+    const validAllocs = editAllocations.filter(a => a.subjectName.trim() && a.classLevel.trim());
     try {
       setSaving(true);
       await axios.put(
@@ -397,7 +419,6 @@ const Staff = () => {
                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Subject Allocations</label>
                 <AllocationRows 
                     list={addAllocations} 
-                    dept={form.department} 
                     setter={setAddAllocations} 
                     handleAllocationChange={handleAllocationChange}
                     handleRemoveAllocationRow={handleRemoveAllocationRow}
@@ -449,11 +470,7 @@ const Staff = () => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-1">Department *</label>
-                <select value={editDept} onChange={e => {
-                  const d = e.target.value as 'General' | 'Science' | 'Art';
-                  setEditDept(d);
-                  setEditAllocations([{ subjectName: '', classLevel: DEPT_CLASSES[d][0], department: d }]);
-                }} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary bg-white">
+                <select value={editDept} onChange={e => setEditDept(e.target.value as 'General' | 'Science' | 'Art')} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary bg-white">
                   {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
@@ -461,7 +478,6 @@ const Staff = () => {
                 <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Subject Allocations</label>
                 <AllocationRows 
                     list={editAllocations} 
-                    dept={editDept} 
                     setter={setEditAllocations}
                     handleAllocationChange={handleAllocationChange}
                     handleRemoveAllocationRow={handleRemoveAllocationRow}
