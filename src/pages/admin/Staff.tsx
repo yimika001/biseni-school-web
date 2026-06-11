@@ -2,10 +2,17 @@ import { useState, useEffect } from 'react';
 import { Search, UserPlus, Mail, Briefcase, Trash2, X, ChevronLeft, ChevronRight, BookOpen, AlertCircle, CheckCircle, Pencil, Plus, Minus } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
+import { API_ENDPOINTS } from '../../config/api';
 
 interface Allocation {
   subjectName: string;
   classLevel: string;
+  department: 'General' | 'Science' | 'Art';
+}
+
+interface Subject {
+  _id: string;
+  name: string;
   department: 'General' | 'Science' | 'Art';
 }
 
@@ -40,9 +47,8 @@ const DEPT_CLASSES: Record<string, string[]> = {
 
 const DEPARTMENTS = ['General', 'Science', 'Art'] as const;
 
-// MOVED OUTSIDE: Allocation row editor to prevent focus loss during re-renders
 const AllocationRows = ({
-  list, dept, setter, handleAllocationChange, handleRemoveAllocationRow, handleAddAllocationRow
+  list, dept, setter, handleAllocationChange, handleRemoveAllocationRow, handleAddAllocationRow, availableSubjects
 }: { 
   list: Allocation[]; 
   dept: 'General' | 'Science' | 'Art'; 
@@ -50,17 +56,21 @@ const AllocationRows = ({
   handleAllocationChange: any;
   handleRemoveAllocationRow: any;
   handleAddAllocationRow: any;
+  availableSubjects: Subject[];
 }) => (
   <div className="space-y-2">
     {list.map((alloc, idx) => (
       <div key={idx} className="flex gap-2 items-start">
-        <input
-          type="text"
+        <select
           value={alloc.subjectName}
           onChange={e => handleAllocationChange(list, idx, 'subjectName', e.target.value, setter, dept)}
-          placeholder="Subject name"
-          className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary"
-        />
+          className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:border-primary bg-white"
+        >
+          <option value="">Select Subject</option>
+          {availableSubjects.filter(s => s.department === dept).map(sub => (
+            <option key={sub._id} value={sub.name}>{sub.name}</option>
+          ))}
+        </select>
         <select
           value={alloc.classLevel}
           onChange={e => handleAllocationChange(list, idx, 'classLevel', e.target.value, setter, dept)}
@@ -90,6 +100,7 @@ const AllocationRows = ({
 const Staff = () => {
   const { token } = useAuth();
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [totalStaffCount, setTotalStaffCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -127,23 +138,28 @@ const Staff = () => {
     setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 4000);
   };
 
-  const fetchStaff = async () => {
+  const fetchData = async () => {
     if (!token) return;
     try {
       setLoading(true);
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/staff`, { headers: { Authorization: `Bearer ${token}` } });
-      setStaff(res.data.staff);
-      setTotalStaffCount(res.data.totalGlobal);
-    } catch { console.error('Failed to fetch staff'); } finally { setLoading(false); }
+      const [staffRes, subRes] = await Promise.all([
+        axios.get(API_ENDPOINTS.STAFF.LIST, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(API_ENDPOINTS.SUBJECTS.LIST, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      setStaff(staffRes.data.staff);
+      setTotalStaffCount(staffRes.data.totalGlobal);
+      setSubjects(subRes.data);
+    } catch { addToast('Failed to load data.', 'error'); } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchStaff(); }, [token]);
+  useEffect(() => { fetchData(); }, [token]);
   useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
   useEffect(() => {
     setAddAllocations(prev => prev.map(a => ({
       ...a,
       department: form.department,
+      subjectName: '',
       classLevel: DEPT_CLASSES[form.department][0],
     })));
   }, [form.department]);
@@ -176,14 +192,14 @@ const Staff = () => {
     try {
       setSubmitting(true);
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/staff/add`,
+        API_ENDPOINTS.STAFF.CREATE,
         { ...form, allocations: validAllocs },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setNewCredentials({ name: form.name, ...res.data.credentials });
+      setNewCredentials({ name: form.name, email: form.email, defaultPassword: res.data.credentials.defaultPassword });
       setShowModal(false);
       setShowSuccessModal(true);
-      fetchStaff();
+      fetchData();
       setForm({ name: '', email: '', phone: '', role: '', department: 'General', qualification: '', joinDate: '' });
       setAddAllocations([{ subjectName: '', classLevel: 'JSS1', department: 'General' }]);
     } catch { addToast('Failed to add staff member.', 'error'); } finally { setSubmitting(false); }
@@ -209,13 +225,13 @@ const Staff = () => {
     try {
       setSaving(true);
       await axios.put(
-        `${import.meta.env.VITE_API_URL}/staff/${staffToEdit._id}`,
+        API_ENDPOINTS.STAFF.DETAILS(staffToEdit._id),
         { role: editRole.trim(), department: editDept, allocations: validAllocs, qualification: editQual.trim(), status: editStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       addToast('Staff record updated successfully.', 'success');
       setShowEditModal(false); setStaffToEdit(null);
-      fetchStaff();
+      fetchData();
     } catch { addToast('Failed to update staff record.', 'error'); } finally { setSaving(false); }
   };
 
@@ -227,10 +243,10 @@ const Staff = () => {
     if (!staffToDelete) return;
     try {
       setDeleting(true);
-      await axios.delete(`${import.meta.env.VITE_API_URL}/staff/${staffToDelete._id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.delete(API_ENDPOINTS.STAFF.DELETE(staffToDelete._id), { headers: { Authorization: `Bearer ${token}` } });
       addToast('Staff member deleted successfully.', 'success');
       setShowDeleteModal(false); setStaffToDelete(null);
-      fetchStaff();
+      fetchData();
     } catch { addToast('Failed to delete staff member.', 'error'); } finally { setDeleting(false); setDeleteConfirmed(false); }
   };
 
@@ -244,7 +260,11 @@ const Staff = () => {
 
   return (
     <div className="p-6 lg:p-8 pb-24 md:pb-8">
-      {/* Toasts */}
+      {/* ... (Keep UI rendering exactly as it was: Toasts, Header, Search, List, Modals) */}
+      {/* Ensure AllocationRows uses the 'subjects' state: */}
+      {/* <AllocationRows ... availableSubjects={subjects} /> */}
+      {/* I will provide the remainder of the JSX structure below to ensure full compliance */}
+      
       <div className="fixed top-6 right-6 z-[100] flex flex-col gap-2">
         {toasts.map(toast => (
           <div key={toast.id} className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-bold ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
@@ -363,6 +383,7 @@ const Staff = () => {
                     handleAllocationChange={handleAllocationChange}
                     handleRemoveAllocationRow={handleRemoveAllocationRow}
                     handleAddAllocationRow={handleAddAllocationRow}
+                    availableSubjects={subjects}
                 />
               </div>
             </div>
@@ -426,6 +447,7 @@ const Staff = () => {
                     handleAllocationChange={handleAllocationChange}
                     handleRemoveAllocationRow={handleRemoveAllocationRow}
                     handleAddAllocationRow={handleAddAllocationRow}
+                    availableSubjects={subjects}
                 />
               </div>
               <div>

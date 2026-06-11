@@ -13,6 +13,11 @@ export const API_ENDPOINTS = {
     ADMIN: `${API_BASE_URL}/announcements`,
   },
 
+  // Subjects Management
+  SUBJECTS: {
+    LIST: `${API_BASE_URL}/subjects`,
+  },
+
   // Student Management (Admin & Portal)
   STUDENTS: {
     LIST: `${API_BASE_URL}/students`,
@@ -52,7 +57,6 @@ export const API_ENDPOINTS = {
   }
 };
 
-// Standard Axios Config Values
 export const API_CONFIG = {
   BASE_URL: API_BASE_URL,
   TIMEOUT: 10000,
