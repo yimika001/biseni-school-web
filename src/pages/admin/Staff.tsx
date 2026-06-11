@@ -144,18 +144,33 @@ const Staff = () => {
     try {
       setLoading(true);
       setError(false);
-      const [staffRes, subRes] = await Promise.all([
+
+      const [staffResult, subResult] = await Promise.allSettled([
         axios.get(API_ENDPOINTS.STAFF.LIST, { headers: { Authorization: `Bearer ${token}` } }),
         axios.get(API_ENDPOINTS.SUBJECTS.LIST, { headers: { Authorization: `Bearer ${token}` } })
       ]);
-      setStaff(staffRes.data.staff || []);
-      setTotalStaffCount(staffRes.data.totalGlobal || 0);
-      setSubjects(subRes.data || []);
-    } catch { 
+
+      // Staff data is critical — only this triggers the error state
+      if (staffResult.status === 'fulfilled') {
+        setStaff(staffResult.value.data.staff || []);
+        setTotalStaffCount(staffResult.value.data.totalGlobal || 0);
+      } else {
+        setError(true);
+        addToast('Failed to load staff data.', 'error');
+      }
+
+      // Subjects are non-critical — fail silently without breaking staff view
+      if (subResult.status === 'fulfilled') {
+        setSubjects(subResult.value.data || []);
+      } else {
+        setSubjects([]);
+        console.error('Failed to load subjects', subResult.reason);
+      }
+    } catch {
       setError(true);
-      addToast('Failed to load data.', 'error'); 
-    } finally { 
-      setLoading(false); 
+      addToast('Failed to load data.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
