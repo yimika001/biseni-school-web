@@ -42,7 +42,7 @@ interface NewStaff {
 const DEPT_CLASSES: Record<string, string[]> = {
   General: ['JSS1', 'JSS2', 'JSS3'],
   Science:  ['SS1 Science', 'SS2 Science', 'SS3 Science'],
-  Art:      ['SS1 Art', 'SS2 Art', 'SS3 Art'],
+  Art:       ['SS1 Art', 'SS2 Art', 'SS3 Art'],
 };
 
 const DEPARTMENTS = ['General', 'Science', 'Art'] as const;
@@ -103,6 +103,7 @@ const Staff = () => {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [totalStaffCount, setTotalStaffCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -142,14 +143,20 @@ const Staff = () => {
     if (!token) return;
     try {
       setLoading(true);
+      setError(false);
       const [staffRes, subRes] = await Promise.all([
         axios.get(API_ENDPOINTS.STAFF.LIST, { headers: { Authorization: `Bearer ${token}` } }),
         axios.get(API_ENDPOINTS.SUBJECTS.LIST, { headers: { Authorization: `Bearer ${token}` } })
       ]);
-      setStaff(staffRes.data.staff);
-      setTotalStaffCount(staffRes.data.totalGlobal);
-      setSubjects(subRes.data);
-    } catch { addToast('Failed to load data.', 'error'); } finally { setLoading(false); }
+      setStaff(staffRes.data.staff || []);
+      setTotalStaffCount(staffRes.data.totalGlobal || 0);
+      setSubjects(subRes.data || []);
+    } catch { 
+      setError(true);
+      addToast('Failed to load data.', 'error'); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   useEffect(() => { fetchData(); }, [token]);
@@ -260,11 +267,6 @@ const Staff = () => {
 
   return (
     <div className="p-6 lg:p-8 pb-24 md:pb-8">
-      {/* ... (Keep UI rendering exactly as it was: Toasts, Header, Search, List, Modals) */}
-      {/* Ensure AllocationRows uses the 'subjects' state: */}
-      {/* <AllocationRows ... availableSubjects={subjects} /> */}
-      {/* I will provide the remainder of the JSX structure below to ensure full compliance */}
-      
       <div className="fixed top-6 right-6 z-[100] flex flex-col gap-2">
         {toasts.map(toast => (
           <div key={toast.id} className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-bold ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
@@ -292,7 +294,9 @@ const Staff = () => {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading...</div>
+        <div className="text-center py-12 text-gray-400">Loading staff records...</div>
+      ) : error ? (
+        <div className="text-center py-12 text-red-500 font-bold">Failed to load staff data. Please try again later.</div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400">No staff found.</div>
       ) : (
